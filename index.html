@@ -653,6 +653,19 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     animation:backdropIn .2s ease both;
     display:flex; justify-content:flex-end;
   }
+  /* Centered confirm modal (e.g. "re-enter your password to remove a user") —
+     reuses .drawer-overlay's backdrop but centers a small card instead of a
+     full-height side panel. */
+  @keyframes confirmModalIn{ from{ opacity:0; transform:scale(.96); } to{ opacity:1; transform:scale(1); } }
+  .confirm-modal-overlay{ justify-content:center; align-items:center; padding:20px; }
+  .confirm-modal{
+    width:min(420px, 100%); max-height:90vh; overflow-y:auto;
+    background:linear-gradient(180deg, rgba(30,30,36,0.98), rgba(18,18,22,0.98));
+    border:1px solid var(--border-strong); border-radius:16px;
+    padding:24px 24px 20px;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,0.75);
+    animation:confirmModalIn .18s ease both;
+  }
   .lead-drawer{
     width:min(560px, 100vw); height:100vh; flex:0 0 auto;
     background:linear-gradient(180deg, rgba(24,24,29,0.98), rgba(17,17,21,0.98));
@@ -1244,7 +1257,6 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:var(--text-primary); margin-bottom:12px;
   }
 
-  @media (max-width:480px){ .message-panel{ width:min(340px, 92vw); right:-40px; } }
 
   /* ------------------------------------------------------------------ */
   /* Responsive layout — off-canvas sidebar + tighter spacing on        */
@@ -1310,6 +1322,26 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     .page-title{ font-size:17.5px; }
     .drawer-body{ padding:16px 16px 8px; }
     .drawer-header, .drawer-actions{ padding-left:16px; padding-right:16px; }
+  }
+
+  /* Messages & notifications panel — on a phone/small-tablet screen the bell
+     button can land anywhere inside the wrapping header toolbar, so a fixed-
+     width panel anchored to it (the desktop behavior) can run off the edge
+     of the screen. Below 640px it becomes a full-width bottom sheet instead,
+     always centered on the viewport regardless of where the bell sits. */
+  @media (max-width:640px){
+    .message-panel{
+      position:fixed; top:auto; bottom:0; left:0; right:0;
+      width:100%; max-width:100%; max-height:82vh;
+      border-radius:16px 16px 0 0;
+      animation:messagePanelUpMobile .22s cubic-bezier(.2,.8,.2,1) both;
+    }
+    @keyframes messagePanelUpMobile{ from{ transform:translateY(100%); } to{ transform:translateY(0); } }
+    .message-conv-list, .message-thread{ max-height:none; }
+  }
+
+  @media (max-width:420px){
+    .confirm-modal{ padding:20px 18px 18px; }
   }
 </style>
 <body>
@@ -8137,15 +8169,21 @@ function UserManagement({
     if (error) window.alert("Could not update status: " + error.message);
   }
 
-  // A harder remove than Deactivate: deletes their profile outright, so they
-  // disappear from this list entirely and can never log back in (Supabase
-  // Auth still technically has their email on file — deleting that requires
-  // the private service key, which never belongs in browser code — but with
-  // no profile row they're rejected at login as "no profile found," which is
-  // functionally the same as being removed). Their past leads and
-  // productivity history are untouched — those belong to the rep record,
-  // not the login account, so nothing they worked on disappears.
-  async function removeUser(user) {
+  // A harder remove than Deactivate: fully deletes both their profile AND
+  // their Supabase Auth login (via the admin_delete_user() RPC — see
+  // leadforge_admin_delete_user_migration.sql), so they disappear from this
+  // list entirely, can never log back in, AND their email address is freed
+  // up to register again later (either by them or someone else). Their past
+  // leads and productivity history are untouched — those belong to the rep
+  // record, not the login account, so nothing they worked on disappears.
+  //
+  // Gated behind re-entering the current Admin's own password (see the
+  // confirm-password modal below) since this is destructive and irreversible.
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [removePassword, setRemovePassword] = useState("");
+  const [removeError, setRemoveError] = useState("");
+  const [removePending, setRemovePending] = useState(false);
+  function openRemoveModal(user) {
     if (user.id === currentUser.id) {
       window.alert("You can't remove the account you're currently logged in as.");
       return;
@@ -8154,20 +8192,57 @@ function UserManagement({
       window.alert("At least one Admin account must remain. Promote another user to Admin first.");
       return;
     }
-    if (!window.confirm(`Remove ${user.name} (${user.email}) from LeadForge? They'll lose access immediately and disappear from this list. Their leads and productivity history stay intact under their rep name. This can't be undone — they'd need to create a brand-new account to come back.`)) return;
+    setRemoveTarget(user);
+    setRemovePassword("");
+    setRemoveError("");
+  }
+  function closeRemoveModal() {
+    if (removePending) return;
+    setRemoveTarget(null);
+    setRemovePassword("");
+    setRemoveError("");
+  }
+  async function confirmRemoveUser() {
+    const user = removeTarget;
+    if (!user) return;
+    if (!removePassword) {
+      setRemoveError("Enter your password to confirm.");
+      return;
+    }
+    if (!isOnlineNow()) {
+      setRemoveError("You're offline — connect to the internet to remove a user account.");
+      return;
+    }
+    setRemovePending(true);
+    setRemoveError("");
+    // Re-checking the Admin's own password before a destructive, irreversible
+    // action — this re-authenticates as the same account (harmless, no
+    // logout/session change) and simply fails if the password is wrong.
+    const {
+      error: authError
+    } = await sb.auth.signInWithPassword({
+      email: currentUser.email,
+      password: removePassword
+    });
+    if (authError) {
+      setRemovePending(false);
+      setRemoveError("Incorrect password. Please try again.");
+      return;
+    }
     setProfiles(ps => ps.filter(p => p.id !== user.id));
     const {
       error
-    } = await sbWriteOrQueue({
-      table: "profiles",
-      action: "delete",
-      matchColumn: "id",
-      matchValue: user.id
+    } = await sb.rpc("admin_delete_user", {
+      target_user_id: user.id
     });
+    setRemovePending(false);
     if (error) {
       window.alert("Could not remove user: " + error.message);
       setProfiles(ps => [...ps, user]);
+      return;
     }
+    setRemoveTarget(null);
+    setRemovePassword("");
   }
   const sorted = profiles.slice().sort((a, b) => a.role === b.role ? a.name.localeCompare(b.name) : a.role === "Admin" ? -1 : 1);
   return /*#__PURE__*/React.createElement("div", {
@@ -8257,8 +8332,54 @@ function UserManagement({
   }, u.isActive ? /*#__PURE__*/React.createElement(IconTrash, null) : /*#__PURE__*/React.createElement(IconRestore, null)), /*#__PURE__*/React.createElement("button", {
     className: "btn danger-solid",
     title: "Remove account permanently",
-    onClick: () => removeUser(u)
-  }, /*#__PURE__*/React.createElement(IconTrashForever, null))))))))));
+    onClick: () => openRemoveModal(u)
+  }, /*#__PURE__*/React.createElement(IconTrashForever, null))))))))), removeTarget && /*#__PURE__*/React.createElement("div", {
+    className: "drawer-overlay confirm-modal-overlay",
+    onClick: closeRemoveModal
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "confirm-modal",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "drawer-title"
+  }, "Remove ", removeTarget.name, "?"), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-sub",
+    style: {
+      marginBottom: 14
+    }
+  }, "They'll lose access immediately and disappear from this list. Their leads and productivity history stay intact under their rep name. This also frees up ", /*#__PURE__*/React.createElement("strong", null, removeTarget.email), " so it can be used to register again later. This can't be undone."), /*#__PURE__*/React.createElement("label", {
+    className: "login-field"
+  }, "Confirm your Admin password", /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    type: "password",
+    autoFocus: true,
+    value: removePassword,
+    onChange: e => setRemovePassword(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") confirmRemoveUser();
+    },
+    placeholder: "Your password"
+  })), removeError && /*#__PURE__*/React.createElement("div", {
+    className: "login-error",
+    style: {
+      marginTop: 10
+    }
+  }, removeError), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-actions",
+    style: {
+      padding: "18px 0 0",
+      border: "none"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: closeRemoveModal,
+    disabled: removePending
+  }, "Cancel"), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-actions-spacer"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn danger-solid",
+    onClick: confirmRemoveUser,
+    disabled: removePending
+  }, removePending ? "Removing…" : "Remove Permanently")))));
 }
 
 /* ---------------------------------------------------------------------- */
