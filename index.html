@@ -4633,16 +4633,27 @@ function LockedRepChip({
 /* Message Center — Admin -> Sales Rep announcements, header bell icon    */
 /* ---------------------------------------------------------------------- */
 
-// A message is one of three shapes, distinguished purely by `recipient` and
-// whether `senderName` matches a known rep — no parent/thread id needed:
+// A message is one of four shapes, distinguished purely by `recipient` and
+// whether `senderName` matches a known rep/admin — no parent/thread id needed:
 //   1. Admin broadcast: recipient = "All", sender = the Admin. (Announcements tab)
-//   2. Admin <-> Rep direct message: recipient = that rep's name (Admin -> Rep) or
-//      the literal "Admin" (Rep -> Admin), sender = whoever sent it. (Team Inbox / Admin tab)
+//   2. Admin <-> Rep shared Team Inbox: recipient = that rep's name (Admin -> Rep) or
+//      the literal "Admin" (Rep -> the whole Admin team), sender = whoever sent it.
+//      Every Admin can see and reply to this one — it's a shared queue, not a DM.
 //   3. Rep -> Rep (any registered rep): recipient = the other rep's name, sender = a rep's name.
-// A rep's private thread with Admin, or with another rep, is just "everything
-// where I'm the sender or the direct recipient", found from those two fields.
+//   4. Private, one-on-one Admin thread: recipient = one specific Admin's own
+//      name, sender = whoever sent it (a Rep messaging one Admin directly
+//      instead of the shared queue, OR one Admin messaging another). Only
+//      that sender/recipient pair — not every Admin — can see these; that
+//      privacy is enforced by the messages_select RLS policy server-side,
+//      not just hidden client-side.
+// A private thread with Admin, a rep, or another named person is just
+// "everything where I'm the sender or the direct recipient", found from
+// those two fields.
 function isRepName(name, reps) {
   return reps.some(r => r.name === name);
+}
+function isAdminName(name, profiles) {
+  return (profiles || []).some(p => p.role === "Admin" && p.name === name);
 }
 
 // Every other active Sales Rep registered in the system is a valid peer to
@@ -4652,12 +4663,44 @@ function computeTeammates(myRep, reps, repTargets) {
   if (!myRep) return [];
   return reps.filter(r => r.name !== myRep);
 }
+
+// Every registered Admin (minus whoever's currently looking) is a valid
+// target for a private one-on-one thread — this is what lets a Sales Rep
+// message one specific Admin instead of the shared Team Inbox, and what
+// lets two Admins message each other directly.
+function computeOtherAdmins(myName, profiles) {
+  return (profiles || []).filter(p => p.role === "Admin" && p.isActive !== false && p.name && p.name !== myName);
+}
+
+// Builds a two-level inbox (conversation list + open thread) for `myName`
+// messaging any of `people` (each needs a `.name`) by real name — shared by
+// Admin's Team Inbox (people = reps) and the new private Admins panel
+// (people = other Admins, on either side). Newest-active conversation first.
+function buildConversations(people, messagesAsc, myName) {
+  return people.map(p => {
+    const thread = messagesAsc.filter(m => m.recipient === p.name && m.senderName === myName || m.senderName === p.name && m.recipient === myName);
+    const last = thread.length ? thread[thread.length - 1] : null;
+    const unread = thread.filter(m => m.senderName === p.name && !(m.readBy || []).includes(myName)).length;
+    return {
+      person: p,
+      thread,
+      last,
+      unread
+    };
+  }).sort((a, b) => {
+    if (a.last && b.last) return (b.last.createdAt || "").localeCompare(a.last.createdAt || "");
+    if (a.last) return -1;
+    if (b.last) return 1;
+    return a.person.name.localeCompare(b.person.name);
+  });
+}
 function MessageCenter({
   messages,
   setMessages,
   isAdmin,
   reps,
   repTargets,
+  profiles,
   currentUser,
   lockedRep
 }) {
@@ -4669,6 +4712,7 @@ function MessageCenter({
   // is); a rep defaults to their Admin thread (the most common action).
   const [tab, setTab] = useState(() => isAdmin ? "team" : "admin");
   const [selectedRep, setSelectedRep] = useState(null); // Admin: which rep's thread is open inside the Team Inbox tab
+  const [selectedAdmin, setSelectedAdmin] = useState(null); // Both roles: which Admin's private thread is open inside the Admins tab
   const [announceBody, setAnnounceBody] = useState("");
   const [announceSending, setAnnounceSending] = useState(false);
   const [teamReplyBody, setTeamReplyBody] = useState("");
@@ -4678,6 +4722,8 @@ function MessageCenter({
   const [peerRecipient, setPeerRecipient] = useState("");
   const [peerBody, setPeerBody] = useState("");
   const [peerSending, setPeerSending] = useState(false);
+  const [adminMsgBody, setAdminMsgBody] = useState("");
+  const [adminMsgSending, setAdminMsgSending] = useState(false);
   const wrapRef = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -4689,18 +4735,50 @@ function MessageCenter({
   }, [open]);
 
   // Clear a stale draft when switching who it would be sent to, so text
-  // typed for one rep never accidentally lands in a different thread.
+  // typed for one rep/admin never accidentally lands in a different thread.
   useEffect(() => {
     setTeamReplyBody("");
   }, [selectedRep]);
+  useEffect(() => {
+    setAdminMsgBody("");
+  }, [selectedAdmin]);
   const myRep = lockedRep || "";
   const myAdminName = currentUser && currentUser.name || "Admin";
+  // Whichever name identifies ME for the private Admins thread below — a
+  // Sales Rep's own name, or an Admin's own name.
+  const myName = isAdmin ? myAdminName : myRep;
   const ascending = useMemo(() => messages.slice().sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "")), [messages]);
   const descending = useMemo(() => messages.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")), [messages]);
 
+  // --- Private Admins thread — available to BOTH roles -----------------
+  // A Sales Rep can message one specific Admin directly instead of the
+  // shared Team Inbox queue below; one Admin can message another the same
+  // way. Either way it's a private, one-on-one thread, enforced server-side
+  // by the messages_select RLS policy (only the sender and that one named
+  // recipient can read it — not every Admin).
+  const otherAdmins = useMemo(() => computeOtherAdmins(myName, profiles), [myName, profiles]);
+  // An Admin can't pick a Sales Rep to START a private thread here (Team
+  // Inbox already covers Admin -> Rep) — but if a Rep has already sent ME
+  // specifically a private DM (recipient = my own name, not the shared
+  // "Admin" bucket), that Rep needs to show up as a contact too, or their
+  // message would arrive with nowhere for me to see or reply to it.
+  const repsWhoDMedMe = useMemo(() => {
+    if (!isAdmin) return [];
+    const names = new Set(messages.filter(m => m.recipient === myName && isRepName(m.senderName, reps)).map(m => m.senderName));
+    return reps.filter(r => names.has(r.name));
+  }, [isAdmin, messages, myName, reps]);
+  const dmContacts = useMemo(() => [...otherAdmins, ...repsWhoDMedMe], [otherAdmins, repsWhoDMedMe]);
+  const adminConversations = useMemo(() => buildConversations(dmContacts, ascending, myName), [dmContacts, ascending, myName]);
+  const selectedAdminThread = useMemo(() => {
+    const c = selectedAdmin ? adminConversations.find(c => c.person.name === selectedAdmin) : null;
+    return c ? c.thread : [];
+  }, [adminConversations, selectedAdmin]);
+  const adminDMUnreadTotal = useMemo(() => adminConversations.reduce((s, c) => s + c.unread, 0), [adminConversations]);
+
   // --- Sales Rep side -------------------------------------------------
-  // Team-wide announcements (read-only), a private thread with Admin, and a
-  // private thread with any other registered Sales Rep — one per tab.
+  // Team-wide announcements (read-only), a shared thread with the whole
+  // Admin team, and a private thread with any other registered Sales Rep —
+  // one per tab (plus the private Admins thread above).
   const announcements = useMemo(() => descending.filter(m => m.recipient === "All"), [descending]);
   const adminThread = useMemo(() => ascending.filter(m => m.recipient === myRep && !isRepName(m.senderName, reps) || m.senderName === myRep && m.recipient === "Admin"), [ascending, myRep, reps]);
   const teammates = useMemo(() => computeTeammates(myRep, reps, repTargets), [myRep, reps, repTargets]);
@@ -4711,19 +4789,23 @@ function MessageCenter({
   const peerUnreadTotal = useMemo(() => messages.filter(m => m.recipient === myRep && isRepName(m.senderName, reps) && !(m.readBy || []).includes(myRep)).length, [messages, myRep, reps]);
   const announcementsUnread = useMemo(() => announcements.filter(m => !(m.readBy || []).includes(myRep)).length, [announcements, myRep]);
   const adminThreadUnread = useMemo(() => adminThread.filter(m => m.recipient === myRep && !(m.readBy || []).includes(myRep)).length, [adminThread, myRep]);
-  const repUnreadCount = announcementsUnread + adminThreadUnread + peerUnreadTotal;
+  const repUnreadCount = announcementsUnread + adminThreadUnread + peerUnreadTotal + adminDMUnreadTotal;
 
   // --- Admin side -------------------------------------------------
   // Team Inbox is a two-level view like any other inbox: a conversation list
   // (one row per rep, newest message first, unread badge) until a specific
   // rep is selected, then that rep's thread + reply box. This is what lets
-  // Admin see AT A GLANCE which rep sent what, without any guessing.
+  // Admin see AT A GLANCE which rep sent what, without any guessing. Every
+  // Admin sees the SAME shared thread per rep — any Admin's own messages to
+  // that rep, plus that rep's replies — since it's a shared team queue, not
+  // a private DM (matched by "sender is any known Admin", not just me, which
+  // is what actually makes it shared across more than one Admin account).
   const repReplies = useMemo(() => descending.filter(m => m.recipient === "Admin"), [descending]);
   const adminUnreadCount = isAdmin ? repReplies.filter(m => !(m.readBy || []).includes(myAdminName)).length : 0;
   const repConversations = useMemo(() => {
     if (!isAdmin) return [];
     return reps.map(r => {
-      const thread = ascending.filter(m => m.recipient === r.name && m.senderName === myAdminName || m.senderName === r.name && m.recipient === "Admin");
+      const thread = ascending.filter(m => m.recipient === r.name && isAdminName(m.senderName, profiles) || m.senderName === r.name && m.recipient === "Admin");
       const last = thread.length ? thread[thread.length - 1] : null;
       const unread = thread.filter(m => m.senderName === r.name && !(m.readBy || []).includes(myAdminName)).length;
       return {
@@ -4738,9 +4820,9 @@ function MessageCenter({
       if (b.last) return 1;
       return a.rep.name.localeCompare(b.rep.name);
     });
-  }, [isAdmin, reps, ascending, myAdminName]);
-  const selectedRepThread = useMemo(() => isAdmin && selectedRep ? ascending.filter(m => m.recipient === selectedRep && m.senderName === myAdminName || m.senderName === selectedRep && m.recipient === "Admin") : [], [isAdmin, ascending, selectedRep, myAdminName]);
-  const unreadCount = isAdmin ? adminUnreadCount : repUnreadCount;
+  }, [isAdmin, reps, ascending, myAdminName, profiles]);
+  const selectedRepThread = useMemo(() => isAdmin && selectedRep ? ascending.filter(m => m.recipient === selectedRep && isAdminName(m.senderName, profiles) || m.senderName === selectedRep && m.recipient === "Admin") : [], [isAdmin, ascending, selectedRep, profiles]);
+  const unreadCount = isAdmin ? adminUnreadCount + adminDMUnreadTotal : repUnreadCount;
   function markRead(toMark, readerName) {
     if (!toMark.length) return;
     const toMarkIds = new Set(toMark.map(m => m.id));
@@ -4774,16 +4856,30 @@ function MessageCenter({
   function selectPeerThread(peerName) {
     setPeerRecipient(peerName);
   }
+  function openAdminConversation(adminName) {
+    setSelectedAdmin(adminName);
+  }
+  function backToAdminConversations() {
+    setSelectedAdmin(null);
+  }
   function toggleOpen() {
     setOpen(o => !o);
   }
 
-  // Whichever tab (and, for Admin, whichever rep conversation) is actually
-  // on screen gets marked read — nothing is marked read just because the
-  // bell was opened, so unread indicators stay meaningful until something is
-  // genuinely viewed.
+  // Whichever tab (and whichever open conversation) is actually on screen
+  // gets marked read — nothing is marked read just because the bell was
+  // opened, so unread indicators stay meaningful until something is
+  // genuinely viewed. The private Admins thread is checked first since it's
+  // reachable from both roles, before the role-specific tabs below it.
   useEffect(() => {
     if (!open) return;
+    if (tab === "admins" && selectedAdmin) {
+      const convo = adminConversations.find(c => c.person.name === selectedAdmin);
+      if (convo) {
+        const toMark = convo.thread.filter(m => m.senderName === selectedAdmin && !(m.readBy || []).includes(myName));
+        markRead(toMark, myName);
+      }
+    }
     if (isAdmin) {
       if (tab === "team" && selectedRep) {
         const toMark = repReplies.filter(m => m.senderName === selectedRep && !(m.readBy || []).includes(myAdminName));
@@ -4803,7 +4899,7 @@ function MessageCenter({
       markRead(toMark, myRep);
     }
     // eslint-disable-next-line
-  }, [open, tab, isAdmin, myRep, selectedRep, peerRecipient, messages]);
+  }, [open, tab, isAdmin, myRep, myName, selectedRep, selectedAdmin, peerRecipient, messages, adminConversations]);
   async function sendAnnouncement() {
     const body = announceBody.trim();
     if (!body) return;
@@ -4868,9 +4964,11 @@ function MessageCenter({
     }
   }
 
-  // A Sales Rep's reply always goes to "Admin" — that single literal, plus
-  // this rep's own name as sender, is what lets any Admin find it and what
-  // keeps it inside this rep's own private thread above.
+  // A Sales Rep's reply to the shared Team Inbox always goes to "Admin" —
+  // that single literal, plus this rep's own name as sender, is what lets
+  // any Admin find it and what keeps it inside this rep's own shared thread
+  // above. For a PRIVATE message to one specific Admin, see sendAdminMessage
+  // below instead.
   async function sendReply() {
     const body = replyBody.trim();
     if (!body || !myRep) return;
@@ -4929,6 +5027,42 @@ function MessageCenter({
       }
     });
     setPeerSending(false);
+    if (error) {
+      window.alert("Could not send your message: " + error.message);
+      setMessages(ms => ms.filter(m => m.id !== newMsg.id));
+    }
+  }
+
+  // A private, one-on-one message to one specific Admin — a Sales Rep
+  // reaching that Admin directly instead of the shared Team Inbox queue, or
+  // one Admin reaching another. Always signed with my own real name, which
+  // is exactly what the messages_select policy matches against to keep this
+  // pair-only rather than visible to every Admin.
+  async function sendAdminMessage() {
+    const body = adminMsgBody.trim();
+    if (!body || !selectedAdmin || !myName) return;
+    setAdminMsgSending(true);
+    const newMsg = {
+      id: uuidv4(),
+      createdAt: new Date().toISOString(),
+      senderName: myName,
+      recipient: selectedAdmin,
+      body,
+      readBy: []
+    };
+    setMessages(ms => [newMsg, ...ms]);
+    setAdminMsgBody("");
+    const {
+      error
+    } = await sbWriteOrQueue({
+      table: "messages",
+      action: "insert",
+      row: {
+        id: newMsg.id,
+        ...messageToRow(newMsg)
+      }
+    });
+    setAdminMsgSending(false);
     if (error) {
       window.alert("Could not send your message: " + error.message);
       setMessages(ms => ms.filter(m => m.id !== newMsg.id));
@@ -5017,6 +5151,76 @@ function MessageCenter({
       className: "message-tab-badge"
     }, count > 9 ? "9+" : count) : null;
   }
+
+  // The private Admins thread — a conversation list of every OTHER Admin,
+  // then that one person's thread + reply box once picked. Identical for
+  // both roles (a Sales Rep reaching one specific Admin instead of the
+  // shared Team Inbox queue, or one Admin reaching another) since it's all
+  // driven by `myName`/`otherAdmins`/`adminConversations` above.
+  function renderAdminsTab() {
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "chart-sub",
+      style: {
+        margin: "6px 2px 10px"
+      }
+    }, "Private — only you and the Admin you pick can see this thread."), selectedAdmin === null ? /*#__PURE__*/React.createElement("div", {
+      className: "message-conv-list"
+    }, dmContacts.length === 0 && /*#__PURE__*/React.createElement("div", {
+      className: "empty-feed"
+    }, isAdmin ? "No other Admins registered yet, and no Sales Rep has messaged you privately." : "No other Admins registered yet."), adminConversations.map(ac => /*#__PURE__*/React.createElement("button", {
+      key: ac.person.id,
+      className: "message-conv-row" + (ac.unread > 0 ? " unread" : ""),
+      onClick: () => openAdminConversation(ac.person.name)
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-avatar",
+      style: {
+        background: "var(--accent-blue)"
+      }
+    }, initials(ac.person.name)), /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-info"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-name"
+    }, ac.person.name, isAdmin && isRepName(ac.person.name, reps) && /*#__PURE__*/React.createElement("span", {
+      className: "tag-muted"
+    }, "\xA0(Sales Rep)"), ac.unread > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "message-new-dot",
+      title: `${ac.unread} unread`
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-preview"
+    }, ac.last ? ac.last.body : "No messages yet — say hello")), ac.last && /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-time"
+    }, formatDateTime(ac.last.createdAt))))) : /*#__PURE__*/React.createElement("div", {
+      className: "message-conv-open"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "message-conv-back",
+      onClick: backToAdminConversations
+    }, "‹\xA0 All conversations"), /*#__PURE__*/React.createElement("div", {
+      className: "message-conv-open-head"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "message-conv-avatar",
+      style: {
+        background: "var(--accent-blue)"
+      }
+    }, initials(selectedAdmin)), selectedAdmin), /*#__PURE__*/React.createElement("div", {
+      className: "message-list message-thread"
+    }, selectedAdminThread.length === 0 && /*#__PURE__*/React.createElement("div", {
+      className: "empty-feed"
+    }, "No messages with ", selectedAdmin, " yet — say hello."), selectedAdminThread.map(m => renderThreadBubble(m, myName))), /*#__PURE__*/React.createElement("div", {
+      className: "message-reply-box"
+    }, /*#__PURE__*/React.createElement("textarea", {
+      className: "textarea message-compose-input",
+      placeholder: `Message ${selectedAdmin} privately…`,
+      value: adminMsgBody,
+      onChange: e => setAdminMsgBody(e.target.value),
+      onKeyDown: e => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendAdminMessage();
+      }
+    }), /*#__PURE__*/React.createElement("button", {
+      className: "btn message-send-btn",
+      disabled: !adminMsgBody.trim() || adminMsgSending,
+      onClick: sendAdminMessage
+    }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", adminMsgSending ? "Sending…" : "Send"))));
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "message-center",
     ref: wrapRef
@@ -5037,6 +5241,11 @@ function MessageCenter({
     onClick: () => setTab("team")
   }, "Team Inbox", /*#__PURE__*/React.createElement(TabBadge, {
     count: adminUnreadCount
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "message-tab" + (tab === "admins" ? " active" : ""),
+    onClick: () => setTab("admins")
+  }, "Admins", /*#__PURE__*/React.createElement(TabBadge, {
+    count: adminDMUnreadTotal
   })), /*#__PURE__*/React.createElement("button", {
     className: "message-tab" + (tab === "announcements" ? " active" : ""),
     onClick: () => setTab("announcements")
@@ -5094,7 +5303,7 @@ function MessageCenter({
     className: "btn message-send-btn",
     disabled: !teamReplyBody.trim() || teamReplySending,
     onClick: sendTeamMessage
-  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", teamReplySending ? "Sending…" : "Send")))), tab === "announcements" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", teamReplySending ? "Sending…" : "Send")))), tab === "admins" && renderAdminsTab(), tab === "announcements" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "message-compose"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea message-compose-input",
@@ -5120,6 +5329,11 @@ function MessageCenter({
   }, "Admin", /*#__PURE__*/React.createElement(TabBadge, {
     count: adminThreadUnread
   })), /*#__PURE__*/React.createElement("button", {
+    className: "message-tab" + (tab === "admins" ? " active" : ""),
+    onClick: () => setTab("admins")
+  }, "Admins", /*#__PURE__*/React.createElement(TabBadge, {
+    count: adminDMUnreadTotal
+  })), /*#__PURE__*/React.createElement("button", {
     className: "message-tab" + (tab === "team" ? " active" : ""),
     onClick: () => setTab("team")
   }, "Sales Reps", /*#__PURE__*/React.createElement(TabBadge, {
@@ -5129,7 +5343,12 @@ function MessageCenter({
     onClick: () => setTab("announcements")
   }, "Announcements", /*#__PURE__*/React.createElement(TabBadge, {
     count: announcementsUnread
-  }))), tab === "admin" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }))), tab === "admins" && renderAdminsTab(), tab === "admin" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub",
+    style: {
+      margin: "6px 2px 10px"
+    }
+  }, "Shared — every Admin can see this thread and reply. Need to reach just one Admin privately? Use the Admins tab instead."), /*#__PURE__*/React.createElement("div", {
     className: "message-list message-thread"
   }, adminThread.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-feed"
@@ -11102,8 +11321,13 @@ function App() {
       if (profile.role === "Admin") {
         const seeded = await seedDemoDataIfEmpty();
         if (seeded) {/* fall through to loadAllData below to pick up the seed */}
-        if (isOnlineNow()) await loadProfilesList();
       }
+      // Every role needs the profiles roster now, not just Admin — a Sales
+      // Rep has to know who the Admins are to pick one for a private DM in
+      // the Messages panel's "Admins" tab. (The profiles_select RLS policy
+      // only lets a non-admin actually read Admin rows plus their own, so
+      // this can't be used to browse other reps' accounts.)
+      if (isOnlineNow()) await loadProfilesList();
       await loadAllData();
       sbWriteOrQueue({
         table: "profiles",
@@ -11570,6 +11794,7 @@ function App() {
     isAdmin: isAdmin,
     reps: activeReps,
     repTargets: repTargets,
+    profiles: profiles,
     currentUser: currentUser,
     lockedRep: lockedRep
   }))), tab === "home" && /*#__PURE__*/React.createElement(HomeScreen, {
