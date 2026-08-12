@@ -1057,35 +1057,90 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     overflow:hidden; padding:24px;
   }
   .login-glow{
-    position:absolute; width:520px; height:520px; border-radius:50%;
-    background:radial-gradient(circle, rgba(0,136,255,0.16), transparent 70%);
-    filter:blur(10px); top:-10%; left:50%; transform:translateX(-50%);
+    position:absolute; width:680px; height:680px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,136,255,0.14), transparent 70%);
+    filter:blur(10px); top:-14%; left:50%; transform:translateX(-50%);
   }
-  .login-card{
-    position:relative; z-index:2; width:100%; max-width:420px;
-    background:linear-gradient(180deg, rgba(30,30,36,0.92), rgba(18,18,22,0.94));
-    border:1px solid var(--border-strong); border-radius:20px;
-    padding:32px 30px 28px;
+
+  /* Split-panel login shell: a branded marketing panel on one side, the
+     actual auth form on the other -- a single unified card whose corners
+     and shadow live on the wrapper so both halves read as one surface. */
+  .login-shell-inner{
+    position:relative; z-index:2; width:100%; max-width:960px;
+    display:flex; border-radius:22px; overflow:hidden;
+    border:1px solid var(--border-strong);
     box-shadow:0 30px 70px -20px rgba(0,0,0,0.75), 0 1px 0 0 rgba(255,255,255,0.06) inset;
   }
-  .login-brand{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }
-  .login-logo{ width:44px; height:44px; border-radius:12px; object-fit:contain; flex:0 0 auto; }
-  .login-brand-title{ font-size:17px; font-weight:800; letter-spacing:-.01em; }
-  .login-brand-tagline{ font-size:11px; color:var(--text-muted); font-weight:600; letter-spacing:.03em; }
+  @media (max-width:860px){
+    .login-shell-inner{ flex-direction:column; max-width:440px; }
+  }
+
+  .login-brand-panel{
+    position:relative; flex:1 1 46%; min-width:0; overflow:hidden;
+    padding:46px 40px; display:flex; flex-direction:column; gap:24px; justify-content:center;
+    background:
+      radial-gradient(420px 320px at 18% 12%, rgba(0,136,255,0.20), transparent 70%),
+      radial-gradient(360px 300px at 90% 95%, rgba(255,153,0,0.14), transparent 70%),
+      linear-gradient(165deg, rgba(30,30,36,0.94), rgba(14,14,17,0.97));
+  }
+  @media (max-width:860px){
+    .login-brand-panel{ padding:30px 28px 22px; gap:14px; }
+  }
+  .login-brand-logo-badge{
+    position:relative; z-index:1; width:64px; height:64px; border-radius:16px;
+    background:linear-gradient(160deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02));
+    border:1px solid var(--border-strong);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.04) inset, 0 14px 28px -8px rgba(0,136,255,0.5);
+  }
+  .login-logo-lg{ width:38px; height:38px; object-fit:contain; }
+  .login-brand-heading{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; }
+  .login-brand-name{ font-size:25px; font-weight:800; letter-spacing:-.01em; }
+  .login-brand-panel-tagline{
+    font-size:11px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--accent-blue);
+  }
+  .login-brand-panel-desc{
+    position:relative; z-index:1; font-size:13px; line-height:1.65; color:var(--text-secondary); max-width:340px;
+  }
+  @media (max-width:860px){ .login-brand-panel-desc{ display:none; } }
+  .login-feature-list{ position:relative; z-index:1; list-style:none; display:flex; flex-direction:column; gap:16px; margin:4px 0 0; padding:0; }
+  @media (max-width:860px){ .login-feature-list{ display:none; } }
+  .login-feature-item{ display:flex; align-items:flex-start; gap:12px; }
+  .login-feature-icon{
+    width:30px; height:30px; border-radius:9px; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,136,255,0.14); color:var(--accent-blue); border:1px solid rgba(0,136,255,0.3);
+  }
+  .login-feature-title{ font-size:12.5px; font-weight:700; color:var(--text-primary); }
+  .login-feature-sub{ font-size:11.5px; color:var(--text-muted); line-height:1.5; margin-top:2px; }
+
+  .login-card{
+    position:relative; z-index:2; flex:1 1 54%; min-width:0;
+    background:var(--surface-1);
+    padding:46px 42px 38px; display:flex; flex-direction:column; justify-content:center;
+  }
+  @media (max-width:860px){
+    .login-card{ padding:28px 28px 26px; }
+  }
   .login-heading{
-    display:flex; align-items:center; gap:8px; color:var(--text-secondary);
-    font-size:13px; font-weight:700; margin-bottom:16px;
+    display:flex; align-items:center; gap:12px; color:var(--text-primary);
+    font-size:17px; font-weight:800; margin-bottom:22px; letter-spacing:-.01em;
   }
   .login-heading svg{ color:var(--accent-blue); }
+  .login-heading > svg:first-child{
+    width:38px; height:38px; padding:9px; border-radius:12px; flex:0 0 auto; box-sizing:border-box;
+    background:rgba(0,136,255,0.14); border:1px solid rgba(0,136,255,0.3);
+  }
   .login-form{ display:flex; flex-direction:column; gap:14px; }
   .login-field{ display:flex; flex-direction:column; gap:6px; font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.02em; }
-  .login-field .input{ text-transform:none; font-weight:400; }
+  .login-field .input{ text-transform:none; font-weight:400; padding:10px 12px; }
   .login-error{
     background:rgba(251,88,88,0.12); border:1px solid rgba(251,88,88,0.35);
     color:var(--status-critical); font-size:12.5px; font-weight:600;
     padding:9px 12px; border-radius:9px;
   }
-  .login-submit{ width:100%; margin-top:2px; padding:11px 17px; }
+  .login-submit{ width:100%; margin-top:6px; padding:13px 17px; font-size:14px; }
   .login-notice{
     background:rgba(0,136,255,0.1); border:1px solid rgba(0,136,255,0.3);
     color:var(--text-secondary); font-size:12px; font-weight:600; line-height:1.5;
@@ -4072,18 +4127,64 @@ function LoginScreen({
   }, /*#__PURE__*/React.createElement("div", {
     className: "login-glow"
   }), /*#__PURE__*/React.createElement("div", {
-    className: "login-card"
+    className: "login-shell-inner"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "login-brand"
+    className: "login-brand-panel"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "login-brand-logo-badge"
   }, /*#__PURE__*/React.createElement("img", {
-    className: "login-logo",
-    src: LOGO_ICON_SM,
+    className: "login-logo-lg",
+    src: LOGO_ICON_LG,
     alt: "LeadForge"
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "login-brand-title"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "login-brand-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "login-brand-name"
   }, "LeadForge"), /*#__PURE__*/React.createElement("div", {
-    className: "login-brand-tagline"
-  }, "Accelerate & Close"))), mode === "login" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "login-brand-panel-tagline"
+  }, "Accelerate & Close")), /*#__PURE__*/React.createElement("p", {
+    className: "login-brand-panel-desc"
+  }, "The CRM built for sales teams that move fast — manage your pipeline, track team productivity, and hit every target without switching tools."), /*#__PURE__*/React.createElement("ul", {
+    className: "login-feature-list"
+  }, /*#__PURE__*/React.createElement("li", {
+    className: "login-feature-item"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "login-feature-icon"
+  }, /*#__PURE__*/React.createElement(IconFunnel, null)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-title"
+  }, "Visual Lead Pipeline"), /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-sub"
+  }, "Track every deal from outreach to close, with bulk import and one-click bulk assignment."))), /*#__PURE__*/React.createElement("li", {
+    className: "login-feature-item"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "login-feature-icon"
+  }, /*#__PURE__*/React.createElement(IconGauge, {
+    color: "currentColor"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-title"
+  }, "Team Productivity Tracking"), /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-sub"
+  }, "Calls, demos and proposals logged daily, rolled up into a real-time productivity score."))), /*#__PURE__*/React.createElement("li", {
+    className: "login-feature-item"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "login-feature-icon"
+  }, /*#__PURE__*/React.createElement(IconTarget, {
+    color: "currentColor"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-title"
+  }, "Business Unit Targets"), /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-sub"
+  }, "Set monthly and annual quotas per rep and business unit, and watch progress update live."))), /*#__PURE__*/React.createElement("li", {
+    className: "login-feature-item"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "login-feature-icon"
+  }, /*#__PURE__*/React.createElement(IconShield, null)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-title"
+  }, "Secure, Role-Based Access"), /*#__PURE__*/React.createElement("div", {
+    className: "login-feature-sub"
+  }, "Admins and Sales Reps each see exactly what they need — nothing more."))))), /*#__PURE__*/React.createElement("div", {
+    className: "login-card"
+  }, mode === "login" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "login-heading"
   }, /*#__PURE__*/React.createElement(IconLock, null), /*#__PURE__*/React.createElement("span", null, "Sign in to your workspace")), notice && /*#__PURE__*/React.createElement("div", {
     className: "login-notice"
@@ -4278,7 +4379,7 @@ function LoginScreen({
     type: "button",
     className: "login-link",
     onClick: () => switchMode("login")
-  }, "Back to Log In")))));
+  }, "Back to Log In"))))));
 }
 
 /* ---------------------------------------------------------------------- */
@@ -9805,14 +9906,65 @@ function UserManagement({
   // so the UI updates immediately instead of waiting for the next login. Moving
   // someone to Sales Rep with no rep linked yet auto-provisions one from their
   // account name so they're never left in an unusable, unlinked state.
-  async function updateUserRole(user, newRole) {
+  //
+  // Flipping someone between Admin and Sales Rep changes what they can see and
+  // do the moment it happens, so — same as permanently removing an account —
+  // it's gated behind re-entering the current Admin's own password (see the
+  // confirm-password modal below) rather than applying instantly from the dropdown.
+  const [roleChangeTarget, setRoleChangeTarget] = useState(null); // { user, newRole }
+  const [rolePassword, setRolePassword] = useState("");
+  const [roleError, setRoleError] = useState("");
+  const [rolePending, setRolePending] = useState(false);
+  function openRoleChangeModal(user, newRole) {
     if (newRole === user.role) return;
     if (user.role === "Admin" && newRole !== "Admin" && adminCount <= 1) {
       window.alert("At least one Admin account must remain. Promote another user to Admin first.");
       return;
     }
-    if (user.id === currentUser.id && newRole !== "Admin") {
-      if (!window.confirm("You're changing your own role away from Admin. You'll lose access to User Management and Team Analytics right away. Continue?")) return;
+    setRoleChangeTarget({
+      user,
+      newRole
+    });
+    setRolePassword("");
+    setRoleError("");
+  }
+  function closeRoleChangeModal() {
+    if (rolePending) return;
+    setRoleChangeTarget(null);
+    setRolePassword("");
+    setRoleError("");
+  }
+  async function confirmRoleChange() {
+    const target = roleChangeTarget;
+    if (!target) return;
+    const {
+      user,
+      newRole
+    } = target;
+    if (!rolePassword) {
+      setRoleError("Enter your password to confirm.");
+      return;
+    }
+    if (!isOnlineNow()) {
+      setRoleError("You're offline — connect to the internet to change a user's role.");
+      return;
+    }
+    setRolePending(true);
+    setRoleError("");
+    // Re-checking the Admin's own password before a role change — same
+    // re-authentication trick as removing a user: it re-signs-in as the
+    // same account (harmless, no logout/session change) and simply fails
+    // if the password is wrong.
+    const {
+      error: authError
+    } = await sb.auth.signInWithPassword({
+      email: currentUser.email,
+      password: rolePassword
+    });
+    if (authError) {
+      setRolePending(false);
+      setRoleError("Incorrect password. Please try again.");
+      return;
     }
     let nextRepName = newRole === "Admin" ? "" : user.repName;
     if (newRole === "Sales Rep" && !nextRepName) {
@@ -9842,7 +9994,25 @@ function UserManagement({
       matchColumn: "id",
       matchValue: user.id
     });
-    if (error) window.alert("Could not update role: " + error.message);
+    setRolePending(false);
+    if (error) {
+      window.alert("Could not update role: " + error.message);
+      setProfiles(ps => ps.map(p => p.id === user.id ? {
+        ...p,
+        role: user.role,
+        repName: user.repName
+      } : p));
+      if (user.id === currentUser.id) {
+        setCurrentUser(cu => cu ? {
+          ...cu,
+          role: user.role,
+          repName: user.repName
+        } : cu);
+      }
+      return;
+    }
+    setRoleChangeTarget(null);
+    setRolePassword("");
   }
   async function updateUserRep(user, newRepName) {
     setProfiles(ps => ps.map(p => p.id === user.id ? {
@@ -10042,7 +10212,7 @@ function UserManagement({
   }, "\xA0(you)") : null), /*#__PURE__*/React.createElement("td", null, u.email), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
     className: "select role-select",
     value: u.role,
-    onChange: e => updateUserRole(u, e.target.value)
+    onChange: e => openRoleChangeModal(u, e.target.value)
   }, ROLES.map(r => /*#__PURE__*/React.createElement("option", {
     key: r,
     value: r
@@ -10136,7 +10306,53 @@ function UserManagement({
     className: "btn danger-solid",
     onClick: confirmRemoveUser,
     disabled: removePending
-  }, removePending ? "Removing…" : "Remove Permanently")))));
+  }, removePending ? "Removing…" : "Remove Permanently")))), roleChangeTarget && /*#__PURE__*/React.createElement("div", {
+    className: "drawer-overlay confirm-modal-overlay",
+    onClick: closeRoleChangeModal
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "confirm-modal",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "drawer-title"
+  }, "Change ", roleChangeTarget.user.name, "'s role to ", roleChangeTarget.newRole, "?"), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-sub",
+    style: {
+      marginBottom: 14
+    }
+  }, roleChangeTarget.newRole === "Admin" ? "They'll immediately gain access to User Management, Team Analytics, and every other Admin-only area." : "They'll immediately lose access to User Management, Team Analytics, and every other Admin-only area.", roleChangeTarget.user.id === currentUser.id && roleChangeTarget.newRole !== "Admin" ? " You're changing your own role away from Admin, so this will apply to you right now." : ""), /*#__PURE__*/React.createElement("label", {
+    className: "login-field"
+  }, "Confirm your Admin password", /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    type: "password",
+    autoFocus: true,
+    value: rolePassword,
+    onChange: e => setRolePassword(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") confirmRoleChange();
+    },
+    placeholder: "Your password"
+  })), roleError && /*#__PURE__*/React.createElement("div", {
+    className: "login-error",
+    style: {
+      marginTop: 10
+    }
+  }, roleError), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-actions",
+    style: {
+      padding: "18px 0 0",
+      border: "none"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: closeRoleChangeModal,
+    disabled: rolePending
+  }, "Cancel"), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-actions-spacer"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: confirmRoleChange,
+    disabled: rolePending
+  }, rolePending ? "Updating…" : "Confirm Role Change")))));
 }
 
 /* ---------------------------------------------------------------------- */
