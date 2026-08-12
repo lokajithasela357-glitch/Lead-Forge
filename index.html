@@ -543,6 +543,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .chart-title{ font-size:14.5px; font-weight:700; }
   .chart-sub{ font-size:11.5px; color:var(--text-muted); margin-bottom:10px; }
   .chart-wrap{ position:relative; width:100%; }
+  .chart-empty-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:12.5px; color:var(--text-muted); pointer-events:none;
+  }
   .tooltip{
     position:absolute; pointer-events:none; z-index:5;
     background:linear-gradient(180deg, #2c2c35, #222228);
@@ -6052,6 +6056,16 @@ function LineChartCard({
   const areaD = points.length ? pathD + ` L${points[points.length - 1].x.toFixed(1)},${(padT + plotH).toFixed(1)} L${points[0].x.toFixed(1)},${(padT + plotH).toFixed(1)} Z` : "";
   const gridLines = [0, 1, 2, 3, 4].map(i => padT + plotH / 4 * i);
   function handleMove(e) {
+    // Unlike every other chart in the app, this hover index is computed
+    // from raw mouse coordinates instead of being tied to an element that
+    // was actually rendered -- so with zero data points there is nothing
+    // valid to hover onto. Bailing out here (rather than clamping to index
+    // 0 of an empty array) is what actually fixes the crash; the render-time
+    // guards below are just defense in depth for any future caller.
+    if (!data.length) {
+      setHoverIdx(null);
+      return;
+    }
     const rect = svgRef.current.getBoundingClientRect();
     const scaleX = W / rect.width;
     const localX = (e.clientX - rect.left) * scaleX;
@@ -6181,7 +6195,7 @@ function LineChartCard({
     fontWeight: "700",
     textAnchor: "end",
     fill: "var(--text-primary)"
-  }, formatValue(points[points.length - 1].value)) : null, hoverIdx !== null && /*#__PURE__*/React.createElement("line", {
+  }, formatValue(points[points.length - 1].value)) : null, hoverIdx !== null && points[hoverIdx] && /*#__PURE__*/React.createElement("line", {
     x1: points[hoverIdx].x,
     x2: points[hoverIdx].x,
     y1: padT,
@@ -6189,7 +6203,7 @@ function LineChartCard({
     stroke: "var(--border-strong)",
     strokeWidth: "1",
     strokeDasharray: "3,3"
-  })), hoverIdx !== null && /*#__PURE__*/React.createElement("div", {
+  })), hoverIdx !== null && points[hoverIdx] && /*#__PURE__*/React.createElement("div", {
     className: "tooltip",
     style: {
       left: mouse.x,
@@ -6199,7 +6213,9 @@ function LineChartCard({
     className: "tt-label"
   }, points[hoverIdx].label), /*#__PURE__*/React.createElement("div", {
     className: "tt-value"
-  }, formatValue(points[hoverIdx].value)))));
+  }, formatValue(points[hoverIdx].value))), points.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "chart-empty-overlay"
+  }, "No data yet")));
 }
 
 /* ---------------------------------------------------------------------- */
