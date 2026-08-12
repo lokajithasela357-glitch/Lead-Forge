@@ -460,6 +460,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     border-radius:99px; padding:5px 6px 5px 13px;
   }
   .rate-label{ font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
+  .currency-active-label{ font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
   .rate-input{
     width:78px; padding:5px 8px; font-size:12.5px; border-radius:99px;
     background:var(--surface-2); text-align:right;
@@ -603,6 +604,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   /* Pipeline table extras */
   .panel-actions{ display:flex; gap:10px; flex-wrap:wrap; }
   .panel-alert{ color:var(--status-warning); font-weight:700; }
+  .quota-scope-banner{
+    background:rgba(0,136,255,0.1); border:1px solid rgba(0,136,255,0.3);
+    border-radius:10px; padding:10px 14px; color:var(--text-secondary);
+  }
   .lead-row{ cursor:pointer; }
   .priority-badge{
     display:inline-flex; align-items:center; font-size:11.5px; font-weight:700;
@@ -4484,6 +4489,43 @@ function TimeframeToggle({
     value: y
   }, y))));
 }
+
+// Shared money-value text input — every place someone reads (rather than
+// types into) a dollar/rupee figure should show thousands separators, but a
+// native <input type="number"> refuses to render commas at all. This swaps
+// in a plain text input that displays the value comma-formatted the instant
+// focus leaves it, while staying as bare digits WHILE typing so the commas
+// never fight the caret or make backspacing feel broken. `value` is always
+// the canonical plain-digit string (no commas) — callers keep working with
+// it exactly as they did with a number input.
+function MoneyAmountInput({
+  className,
+  value,
+  onChange,
+  onCommit,
+  placeholder,
+  onKeyDown,
+  title
+}) {
+  const [focused, setFocused] = useState(false);
+  const display = focused ? value : value !== "" && value != null && !isNaN(Number(value)) ? Number(value).toLocaleString("en-US") : value || "";
+  return /*#__PURE__*/React.createElement("input", {
+    className: className,
+    type: "text",
+    inputMode: "numeric",
+    pattern: "[0-9]*",
+    title: title,
+    placeholder: placeholder,
+    value: display,
+    onFocus: () => setFocused(true),
+    onChange: e => onChange(e.target.value.replace(/[^\d]/g, "")),
+    onBlur: () => {
+      setFocused(false);
+      if (onCommit) onCommit();
+    },
+    onKeyDown: onKeyDown
+  });
+}
 function CurrencyControl({
   currency,
   setCurrency,
@@ -4521,7 +4563,10 @@ function CurrencyControl({
     }
   }), /*#__PURE__*/React.createElement("span", {
     className: "rate-label"
-  }, "LKR")), /*#__PURE__*/React.createElement("div", {
+  }, "LKR")), /*#__PURE__*/React.createElement("span", {
+    className: "currency-active-label",
+    title: "Every amount in the app right now is shown in this currency"
+  }, "Showing amounts in"), /*#__PURE__*/React.createElement("div", {
     className: "seg-toggle",
     role: "tablist",
     "aria-label": "Currency"
@@ -6368,14 +6413,11 @@ function LeadDrawer({
     className: "field-group-title"
   }, "Deal Metrics"), /*#__PURE__*/React.createElement("div", {
     className: "drawer-grid"
-  }, /*#__PURE__*/React.createElement("label", null, "Deal Value (", currency, ")", /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("label", null, "Deal Value (", currency, ")", /*#__PURE__*/React.createElement(MoneyAmountInput, {
     className: "input",
-    type: "text",
-    inputMode: "numeric",
-    pattern: "[0-9]*",
     value: valueInput,
-    onChange: e => handleValueInputChange(e.target.value),
-    onBlur: handleValueInputBlur
+    onChange: handleValueInputChange,
+    onCommit: handleValueInputBlur
   })), /*#__PURE__*/React.createElement("label", null, "Pipeline Stage", /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: lead.stage,
@@ -7254,7 +7296,9 @@ function TeamAnalytics({
   lockedRep,
   businessUnits,
   repTargets,
-  log
+  log,
+  selectedRep,
+  timeframe
 }) {
   const [newRepName, setNewRepName] = useState("");
   const fmt = makeMoneyFormatter(currency, rate);
@@ -7277,39 +7321,53 @@ function TeamAnalytics({
     color: s.color
   }));
 
-  // Individual gauge metrics for a Sales Rep's own "My Performance" view —
-  // quota attainment (this month & this year), win rate, and productivity
-  // score, each rendered as a semicircle meter (GaugeMeterCard) so a rep can
-  // read their standing at a glance instead of parsing a table.
+  // Individual gauge metrics for a "My Performance" view — quota attainment
+  // (monthly & annual), win rate, and productivity score, each rendered as a
+  // semicircle meter (GaugeMeterCard) so a rep can read their standing at a
+  // glance instead of parsing a table. A Sales Rep always sees their own —
+  // an Admin sees the SAME breakdown for whichever rep the header's "Viewing"
+  // selector is currently scoped to (this is what lets an Admin actually
+  // check a specific rep's quota attainment for any month, instead of only
+  // ever seeing the full-team leaderboard above).
   const now = new Date();
-  const myRep = !isAdmin ? visibleReps[0] : null;
-  const myStat = !isAdmin ? stats[0] : null;
-  const myMonthlyQuota = useMemo(() => !isAdmin && myRep && repTargets ? computeRepTargetStats([myRep], repTargets, leads, now.getFullYear(), now.getMonth() + 1, null)[0] : null, [isAdmin, myRep, repTargets, leads]);
-  const myAnnualQuota = useMemo(() => !isAdmin && myRep && repTargets ? computeRepTargetStats([myRep], repTargets, leads, now.getFullYear(), null, null)[0] : null, [isAdmin, myRep, repTargets, leads]);
-  const myProductivity = useMemo(() => !isAdmin && myRep && log ? computeRepProductivityStats([myRep], log)[0] : null, [isAdmin, myRep, log]);
+  const quotaRepName = isAdmin ? selectedRep && selectedRep !== "All" ? selectedRep : null : lockedRep;
+  const quotaRep = quotaRepName ? visibleReps.find(r => r.name === quotaRepName) : null;
+  const quotaStat = quotaRepName ? stats.find(s => s.rep.name === quotaRepName) : null;
+  // The Monthly figures follow the header's Month/Year pickers (visible
+  // whenever the toolbar's Monthly/Yearly toggle is set to Monthly); the
+  // Annual figures follow the Yearly toggle's own year picker — same split
+  // Dashboard already uses, so a rep (or an Admin checking a rep) can jump
+  // straight to whichever month an Admin actually allocated a different
+  // target for, instead of being stuck looking at today's real-world month.
+  const quotaMonthAnchorYear = Number(timeframe.monthAnchor.slice(0, 4));
+  const quotaMonthAnchorMonth = Number(timeframe.monthAnchor.slice(5, 7));
+  const quotaAnnualYear = Number(timeframe.yearAnchor);
+  const quotaPossessive = isAdmin && quotaRepName ? `${quotaRepName}'s` : "Your";
+  const quotaPossessiveLower = isAdmin && quotaRepName ? `${quotaRepName}'s` : "your";
+  const quotaMonthlyQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth, null)[0] : null, [quotaRep, repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
+  const quotaAnnualQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, leads, quotaAnnualYear, null, null)[0] : null, [quotaRep, repTargets, leads, quotaAnnualYear]);
+  const quotaProductivity = useMemo(() => quotaRep && log ? computeRepProductivityStats([quotaRep], log)[0] : null, [quotaRep, log]);
 
-  // Per-Business-Unit quota breakdown for a Sales Rep's own view — the
-  // aggregate cards above answer "how am I doing overall", this answers
-  // "how am I doing in each Business Unit my Admin has actually given me a
-  // target in" (only BUs with a monthly and/or annual allocation this year
-  // show up here at all — nothing to show for one they haven't been
-  // assigned a quota in).
-  const myBUQuotas = useMemo(() => {
-    if (isAdmin || !myRep || !repTargets) return [];
-    const year = now.getFullYear();
-    const buNames = Array.from(new Set(repTargets.filter(t => t.repName === myRep.name && t.year === year).map(t => t.businessUnit))).filter(Boolean).sort();
+  // Per-Business-Unit quota breakdown — the aggregate cards above answer
+  // "how am I doing overall", this answers "how am I doing in each Business
+  // Unit my Admin has actually given me a target in" (only BUs with a
+  // monthly and/or annual allocation in the selected year show up at all —
+  // nothing to show for one that hasn't been assigned a quota).
+  const quotaBUQuotas = useMemo(() => {
+    if (!quotaRep || !repTargets) return [];
     const zero = {
       target: 0,
       actual: 0,
       remaining: 0,
       pct: 0
     };
+    const buNames = Array.from(new Set(repTargets.filter(t => t.repName === quotaRep.name && (t.year === quotaAnnualYear || t.year === quotaMonthAnchorYear)).map(t => t.businessUnit))).filter(Boolean).sort();
     return buNames.map(buName => {
       const buMeta = businessUnits.find(b => b.name === buName);
-      const monthly = computeRepTargetStats([myRep], repTargets, leads, year, now.getMonth() + 1, buName)[0] || {
+      const monthly = computeRepTargetStats([quotaRep], repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth, buName)[0] || {
         ...zero
       };
-      const annual = computeRepTargetStats([myRep], repTargets, leads, year, null, buName)[0] || {
+      const annual = computeRepTargetStats([quotaRep], repTargets, leads, quotaAnnualYear, null, buName)[0] || {
         ...zero
       };
       return {
@@ -7319,7 +7377,7 @@ function TeamAnalytics({
         annual
       };
     });
-  }, [isAdmin, myRep, repTargets, leads, businessUnits]);
+  }, [quotaRep, repTargets, leads, businessUnits, quotaAnnualYear, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
   async function addRep() {
     const name = newRepName.trim();
     if (!name) return;
@@ -7517,38 +7575,43 @@ function TeamAnalytics({
     className: "lb-stat-value"
   }, fmt(s.avgDeal)))))), stats.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "card empty-feed"
-  }, isAdmin ? "No sales reps yet — add one above." : "Your performance summary will appear here once you have leads assigned to you.")), !isAdmin && myStat && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, isAdmin ? "No sales reps yet — add one above." : "Your performance summary will appear here once you have leads assigned to you.")), quotaStat && /*#__PURE__*/React.createElement(React.Fragment, null, isAdmin && /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub quota-scope-banner",
+    style: {
+      marginBottom: 12
+    }
+  }, "Viewing ", quotaRepName, "'s personal targets for ", MONTH_NAMES[quotaMonthAnchorMonth - 1], " ", quotaMonthAnchorYear, " (monthly) and ", quotaAnnualYear, " (annual) — change the Month/Year pickers above to look at a different period."), /*#__PURE__*/React.createElement("div", {
     className: "kpi-grid",
     style: {
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement(KpiCard, {
     label: "Monthly Quota Target",
-    value: myMonthlyQuota ? fmt(myMonthlyQuota.target) : "No target set",
+    value: quotaMonthlyQuota ? fmt(quotaMonthlyQuota.target) : "No target set",
     icon: /*#__PURE__*/React.createElement(IconTarget, {
       color: "var(--accent-blue)"
     }),
     iconColor: "var(--accent-blue)",
     iconBg: "rgba(0,136,255,0.14)",
-    caption: MONTH_NAMES[now.getMonth()] + " " + now.getFullYear()
+    caption: MONTH_NAMES[quotaMonthAnchorMonth - 1] + " " + quotaMonthAnchorYear
   }), /*#__PURE__*/React.createElement(KpiCard, {
     label: "Closed This Month",
-    value: myMonthlyQuota ? fmt(myMonthlyQuota.actual) : fmt(0),
+    value: quotaMonthlyQuota ? fmt(quotaMonthlyQuota.actual) : fmt(0),
     icon: /*#__PURE__*/React.createElement(IconDollar, {
       color: "var(--status-good)"
     }),
     iconColor: "var(--status-good)",
     iconBg: "rgba(47,214,108,0.14)",
-    caption: myMonthlyQuota ? formatRemaining(myMonthlyQuota.target, myMonthlyQuota.actual, fmt) : "No target set for this month"
+    caption: quotaMonthlyQuota ? formatRemaining(quotaMonthlyQuota.target, quotaMonthlyQuota.actual, fmt) : "No target set for this month"
   }), /*#__PURE__*/React.createElement(KpiCard, {
     label: "Avg Deal Size",
-    value: fmt(myStat.avgDeal),
+    value: fmt(quotaStat.avgDeal),
     icon: /*#__PURE__*/React.createElement(IconGauge, {
-      color: scoreHex(myStat.winRate)
+      color: scoreHex(quotaStat.winRate)
     }),
-    iconColor: scoreHex(myStat.winRate),
-    iconBg: hexToRgba(scoreHex(myStat.winRate), 0.14),
-    caption: `${myStat.wonCount} deal${myStat.wonCount === 1 ? "" : "s"} won of ${myStat.assignedCount} assigned`
+    iconColor: scoreHex(quotaStat.winRate),
+    iconBg: hexToRgba(scoreHex(quotaStat.winRate), 0.14),
+    caption: `${quotaStat.wonCount} deal${quotaStat.wonCount === 1 ? "" : "s"} won of ${quotaStat.assignedCount} assigned`
   })), /*#__PURE__*/React.createElement("div", {
     className: "chart-head",
     style: {
@@ -7556,46 +7619,46 @@ function TeamAnalytics({
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-title"
-  }, "Your Performance Gauges")), /*#__PURE__*/React.createElement("div", {
+  }, quotaPossessive, " Performance Gauges")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub",
     style: {
       marginBottom: 12
     }
-  }, "How you're tracking against quota, win rate, and daily activity — updated live from your pipeline and productivity log."), /*#__PURE__*/React.createElement("div", {
+  }, "How ", isAdmin && quotaRepName ? `${quotaRepName} is` : "you're", " tracking against quota, win rate, and daily activity — updated live from ", isAdmin && quotaRepName ? "their" : "your", " pipeline and productivity log."), /*#__PURE__*/React.createElement("div", {
     className: "charts-grid",
     style: {
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement(GaugeMeterCard, {
     title: "Monthly Quota Attainment",
-    sub: `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()} · closed-won vs. your monthly target`,
-    pct: myMonthlyQuota ? myMonthlyQuota.pct : null,
-    color: targetStatusColor(myMonthlyQuota ? myMonthlyQuota.pct : 0),
-    centerValue: myMonthlyQuota ? `${myMonthlyQuota.pct}%` : "—",
-    centerCaption: myMonthlyQuota ? `${fmtCompact(myMonthlyQuota.actual)} of ${fmtCompact(myMonthlyQuota.target)}` : "No quota assigned",
-    footNote: myMonthlyQuota ? formatRemaining(myMonthlyQuota.target, myMonthlyQuota.actual, fmt) : "Ask your admin to allocate a monthly quota",
-    footColor: targetStatusColor(myMonthlyQuota ? myMonthlyQuota.pct : 0),
-    emptyText: myMonthlyQuota ? null : undefined
+    sub: `${MONTH_NAMES[quotaMonthAnchorMonth - 1]} ${quotaMonthAnchorYear} · closed-won vs. ${quotaPossessiveLower} monthly target`,
+    pct: quotaMonthlyQuota ? quotaMonthlyQuota.pct : null,
+    color: targetStatusColor(quotaMonthlyQuota ? quotaMonthlyQuota.pct : 0),
+    centerValue: quotaMonthlyQuota ? `${quotaMonthlyQuota.pct}%` : "—",
+    centerCaption: quotaMonthlyQuota ? `${fmtCompact(quotaMonthlyQuota.actual)} of ${fmtCompact(quotaMonthlyQuota.target)}` : "No quota assigned",
+    footNote: quotaMonthlyQuota ? formatRemaining(quotaMonthlyQuota.target, quotaMonthlyQuota.actual, fmt) : `Ask ${isAdmin ? "an" : "your"} admin to allocate a monthly quota`,
+    footColor: targetStatusColor(quotaMonthlyQuota ? quotaMonthlyQuota.pct : 0),
+    emptyText: quotaMonthlyQuota ? null : undefined
   }), /*#__PURE__*/React.createElement(GaugeMeterCard, {
     title: "Win Rate",
     sub: "Closed-won vs. closed-lost, all-time",
-    pct: myStat.winRate,
-    color: scoreHex(myStat.winRate),
-    centerValue: `${myStat.winRate}%`,
-    centerCaption: `${myStat.wonCount} won / ${myStat.wonCount + myStat.lostCount} decided`,
-    footNote: myStat.winRate >= 55 ? "Solid win rate — keep it up" : "Room to improve — review lost-deal reasons",
-    footColor: scoreHex(myStat.winRate)
+    pct: quotaStat.winRate,
+    color: scoreHex(quotaStat.winRate),
+    centerValue: `${quotaStat.winRate}%`,
+    centerCaption: `${quotaStat.wonCount} won / ${quotaStat.wonCount + quotaStat.lostCount} decided`,
+    footNote: quotaStat.winRate >= 55 ? "Solid win rate — keep it up" : "Room to improve — review lost-deal reasons",
+    footColor: scoreHex(quotaStat.winRate)
   }), /*#__PURE__*/React.createElement(GaugeMeterCard, {
     title: "Productivity Score",
-    sub: "Average daily score from your activity log",
-    pct: myProductivity && myProductivity.entries > 0 ? myProductivity.avgScore : null,
-    color: scoreHex(myProductivity ? myProductivity.avgScore : 0),
-    centerValue: myProductivity && myProductivity.entries > 0 ? `${myProductivity.avgScore}` : "—",
-    centerCaption: myProductivity && myProductivity.entries > 0 ? `${myProductivity.totalCalls} calls · ${myProductivity.totalDemos} demos · ${myProductivity.totalProposals} proposals` : "No activity logged yet",
-    footNote: myProductivity && myProductivity.entries > 0 ? `Based on ${myProductivity.entries} logged day${myProductivity.entries === 1 ? "" : "s"}` : "Log your daily activity in Productivity Tracker",
-    footColor: scoreHex(myProductivity ? myProductivity.avgScore : 0),
-    emptyText: "Log your daily activity in Productivity Tracker to see this gauge."
-  })), myAnnualQuota && /*#__PURE__*/React.createElement("div", {
+    sub: "Average daily score from the activity log",
+    pct: quotaProductivity && quotaProductivity.entries > 0 ? quotaProductivity.avgScore : null,
+    color: scoreHex(quotaProductivity ? quotaProductivity.avgScore : 0),
+    centerValue: quotaProductivity && quotaProductivity.entries > 0 ? `${quotaProductivity.avgScore}` : "—",
+    centerCaption: quotaProductivity && quotaProductivity.entries > 0 ? `${quotaProductivity.totalCalls} calls · ${quotaProductivity.totalDemos} demos · ${quotaProductivity.totalProposals} proposals` : "No activity logged yet",
+    footNote: quotaProductivity && quotaProductivity.entries > 0 ? `Based on ${quotaProductivity.entries} logged day${quotaProductivity.entries === 1 ? "" : "s"}` : "Log daily activity in Productivity Tracker",
+    footColor: scoreHex(quotaProductivity ? quotaProductivity.avgScore : 0),
+    emptyText: "Log daily activity in Productivity Tracker to see this gauge."
+  })), quotaAnnualQuota && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       marginBottom: 16
@@ -7606,47 +7669,48 @@ function TeamAnalytics({
     className: "chart-title"
   }, "Annual Quota Progress")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub"
-  }, now.getFullYear(), " — how much of your annual target you've closed so far."), /*#__PURE__*/React.createElement("div", {
+  }, quotaAnnualYear, " — how much of ", quotaPossessiveLower, " annual target ", isAdmin && quotaRepName ? "they've" : "you've", " closed so far."), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "quota-period-figures"
-  }, fmt(myAnnualQuota.actual), " ", /*#__PURE__*/React.createElement("span", {
+  }, fmt(quotaAnnualQuota.actual), " ", /*#__PURE__*/React.createElement("span", {
     className: "quota-of"
-  }, "of"), " ", fmt(myAnnualQuota.target)), /*#__PURE__*/React.createElement(TargetProgressBar, {
-    pct: myAnnualQuota.pct,
-    label: `${myAnnualQuota.pct}% of annual target`
+  }, "of"), " ", fmt(quotaAnnualQuota.target)), /*#__PURE__*/React.createElement(TargetProgressBar, {
+    pct: quotaAnnualQuota.pct,
+    label: `${quotaAnnualQuota.pct}% of annual target`
   }), /*#__PURE__*/React.createElement("div", {
     className: "quota-remaining",
     style: {
-      color: targetStatusColor(myAnnualQuota.pct)
+      color: targetStatusColor(quotaAnnualQuota.pct)
     }
-  }, formatRemaining(myAnnualQuota.target, myAnnualQuota.actual, fmt)))), /*#__PURE__*/React.createElement("div", {
+  }, formatRemaining(quotaAnnualQuota.target, quotaAnnualQuota.actual, fmt)))), /*#__PURE__*/React.createElement("div", {
     className: "chart-head",
     style: {
       marginBottom: 2
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-title"
-  }, "Your Targets by Business Unit")), /*#__PURE__*/React.createElement("div", {
+  }, quotaPossessive, " Targets by Business Unit")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub",
     style: {
       marginBottom: 12
     }
-  }, myBUQuotas.length > 0 ? `The monthly and annual quotas your Admin has allocated to you, broken down across ${myBUQuotas.length} Business Unit${myBUQuotas.length === 1 ? "" : "s"}.` : "Your Admin hasn't allocated you a Business Unit target yet — check back once one's been set."), myBUQuotas.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, quotaBUQuotas.length > 0 ? `The monthly (${MONTH_NAMES[quotaMonthAnchorMonth - 1]} ${quotaMonthAnchorYear}) and annual (${quotaAnnualYear}) quotas allocated, broken down across ${quotaBUQuotas.length} Business Unit${quotaBUQuotas.length === 1 ? "" : "s"}. Use the Month/Year pickers above to filter to a different period.` : `No Business Unit target has been allocated ${isAdmin && quotaRepName ? "to " + quotaRepName : "to you"} yet for ${quotaMonthAnchorYear === quotaAnnualYear ? quotaAnnualYear : `${quotaMonthAnchorYear} or ${quotaAnnualYear}`} — check back once one's been set, or try a different Month/Year.`), quotaBUQuotas.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "leaderboard-grid",
     style: {
       marginBottom: 16
     }
-  }, myBUQuotas.map(q => /*#__PURE__*/React.createElement(BUQuotaCard, {
+  }, quotaBUQuotas.map(q => /*#__PURE__*/React.createElement(BUQuotaCard, {
     key: q.buName,
     buName: q.buName,
     buColor: q.color,
     monthly: q.monthly,
     annual: q.annual,
-    monthLabel: MONTH_NAMES[now.getMonth()],
-    year: now.getFullYear(),
+    monthLabel: MONTH_NAMES[quotaMonthAnchorMonth - 1],
+    monthYear: quotaMonthAnchorYear,
+    year: quotaAnnualYear,
     fmt: fmt
   }))), /*#__PURE__*/React.createElement("div", {
     className: "card",
@@ -7659,12 +7723,12 @@ function TeamAnalytics({
     className: "chart-title"
   }, "Business Unit Target Summary")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub"
-  }, MONTH_NAMES[now.getMonth()], " ", now.getFullYear(), " monthly quota alongside full-year progress, per Business Unit."), /*#__PURE__*/React.createElement("div", {
+  }, MONTH_NAMES[quotaMonthAnchorMonth - 1], " ", quotaMonthAnchorYear, " monthly quota alongside ", quotaAnnualYear, " full-year progress, per Business Unit."), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap",
     style: {
       marginTop: 12
     }
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null, "Closed MTD"), /*#__PURE__*/React.createElement("th", null, "Annual Target"), /*#__PURE__*/React.createElement("th", null, "Closed YTD"), /*#__PURE__*/React.createElement("th", null, "% of Annual"))), /*#__PURE__*/React.createElement("tbody", null, myBUQuotas.map(q => /*#__PURE__*/React.createElement("tr", {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null, "Closed MTD"), /*#__PURE__*/React.createElement("th", null, "Annual Target"), /*#__PURE__*/React.createElement("th", null, "Closed YTD"), /*#__PURE__*/React.createElement("th", null, "% of Annual"))), /*#__PURE__*/React.createElement("tbody", null, quotaBUQuotas.map(q => /*#__PURE__*/React.createElement("tr", {
     key: q.buName
   }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
     className: "rep-badge",
@@ -7685,7 +7749,7 @@ function TeamAnalytics({
     }
   }, q.annual.pct, "%")))), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
     className: "log-totals-row"
-  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "Total")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.monthly.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.monthly.actual, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.annual.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.annual.actual, 0)))), /*#__PURE__*/React.createElement("td", null, "—")))))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "Total")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(quotaBUQuotas.reduce((s, q) => s + q.monthly.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(quotaBUQuotas.reduce((s, q) => s + q.monthly.actual, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(quotaBUQuotas.reduce((s, q) => s + q.annual.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(quotaBUQuotas.reduce((s, q) => s + q.annual.actual, 0)))), /*#__PURE__*/React.createElement("td", null, "—")))))))), /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       marginBottom: 16
@@ -7774,6 +7838,30 @@ function TeamAnalytics({
 /* ---------------------------------------------------------------------- */
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+// A Business Unit's editable annual-target cell — kept as its own small
+// component (rather than the inline defaultValue+remount-key trick used
+// before) so it can hold local text while typing and still comma-format on
+// blur via MoneyAmountInput, while still resetting to the BU's real value
+// whenever the target changes elsewhere or the display currency/rate flips.
+function BUTargetInput({
+  bu,
+  currency,
+  rate,
+  onCommit
+}) {
+  const displayValue = () => String(Math.round(toDisplayAmount(bu.annualTarget, currency, rate)));
+  const [val, setVal] = useState(displayValue);
+  useEffect(() => {
+    setVal(displayValue());
+  }, [bu.annualTarget, currency, rate]);
+  return /*#__PURE__*/React.createElement(MoneyAmountInput, {
+    className: "input target-amount-input",
+    value: val,
+    onChange: setVal,
+    onCommit: () => onCommit(val)
+  });
+}
 function RepQuotaCard({
   stat,
   currency,
@@ -7848,6 +7936,7 @@ function BUQuotaCard({
   monthly,
   annual,
   monthLabel,
+  monthYear,
   year,
   fmt
 }) {
@@ -7870,7 +7959,7 @@ function BUQuotaCard({
     className: "quota-period"
   }, /*#__PURE__*/React.createElement("div", {
     className: "quota-period-label"
-  }, monthLabel, " ", year, " ", /*#__PURE__*/React.createElement("span", {
+  }, monthLabel, " ", monthYear != null ? monthYear : year, " ", /*#__PURE__*/React.createElement("span", {
     className: "tag-muted"
   }, "Monthly")), /*#__PURE__*/React.createElement("div", {
     className: "quota-period-figures"
@@ -8283,13 +8372,11 @@ function BusinessUnits({
     onKeyDown: e => {
       if (e.key === "Enter") addBU();
     }
-  }), /*#__PURE__*/React.createElement("input", {
+  }), /*#__PURE__*/React.createElement(MoneyAmountInput, {
     className: "input target-amount-input",
-    type: "number",
-    min: "0",
     placeholder: `Annual target (${currency})`,
     value: newBUTarget,
-    onChange: e => setNewBUTarget(e.target.value),
+    onChange: setNewBUTarget,
     onKeyDown: e => {
       if (e.key === "Enter") addBU();
     }
@@ -8312,13 +8399,11 @@ function BusinessUnits({
       className: "input bu-name-input",
       defaultValue: bu.name,
       onBlur: e => renameBU(bu, e.target.value)
-    })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
-      key: `${bu.id}-${currency}-${rate}`,
-      className: "input target-amount-input",
-      type: "number",
-      min: "0",
-      defaultValue: Math.round(toDisplayAmount(bu.annualTarget, currency, rate)),
-      onBlur: e => updateBUTarget(bu, e.target.value)
+    })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUTargetInput, {
+      bu: bu,
+      currency: currency,
+      rate: rate,
+      onCommit: v => updateBUTarget(bu, v)
     })), /*#__PURE__*/React.createElement("td", {
       style: {
         minWidth: 150
@@ -8399,12 +8484,10 @@ function BusinessUnits({
   }, YEAR_OPTIONS.map(y => /*#__PURE__*/React.createElement("option", {
     key: y,
     value: y
-  }, y)))), /*#__PURE__*/React.createElement("label", null, allocMode === "monthly" ? `Monthly Target (${currency})` : `Annual Target (${currency})`, /*#__PURE__*/React.createElement("input", {
+  }, y)))), /*#__PURE__*/React.createElement("label", null, allocMode === "monthly" ? `Monthly Target (${currency})` : `Annual Target (${currency})`, /*#__PURE__*/React.createElement(MoneyAmountInput, {
     className: "input target-amount-input",
-    type: "number",
-    min: "0",
     value: allocAmount,
-    onChange: e => setAllocAmount(e.target.value),
+    onChange: setAllocAmount,
     onKeyDown: e => {
       if (e.key === "Enter") saveAllocation();
     }
@@ -11527,7 +11610,9 @@ function App() {
     lockedRep: lockedRep,
     businessUnits: businessUnits,
     repTargets: repTargets,
-    log: log
+    log: log,
+    selectedRep: selectedRep,
+    timeframe: timeframe
   }), tab === "businessunits" && isAdmin && /*#__PURE__*/React.createElement(BusinessUnits, {
     businessUnits: businessUnits,
     setBusinessUnits: setBusinessUnits,
