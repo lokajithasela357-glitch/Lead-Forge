@@ -10918,6 +10918,48 @@ function App() {
     };
     // eslint-disable-next-line
   }, []);
+
+  // Live messages: without this, loadAllData() only ever fetches the
+  // messages table once (at login), so anything someone else sends just
+  // sits in the database until this tab happens to reload. Subscribing to
+  // Postgres changes on the table pushes every insert/update/delete to every
+  // open tab the instant it happens — this is what actually makes the bell/
+  // mail icon feel "live" instead of "eventually, on next refresh."
+  // Requires the `messages` table to be added to the `supabase_realtime`
+  // publication once in the SQL Editor (see the realtime migration) — RLS
+  // still applies as normal, so each person only ever receives the rows
+  // their own messages_select policy already allows them to see.
+  useEffect(() => {
+    if (!currentUser) return;
+    const channel = sb.channel("messages-live-" + currentUser.id).on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "messages"
+    }, payload => {
+      const incoming = messageFromRow(payload.new);
+      // The sender's own tab already added this optimistically the moment
+      // they hit Send — skip it here so it doesn't show up twice.
+      setMessages(ms => ms.some(m => m.id === incoming.id) ? ms : [incoming, ...ms]);
+    }).on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "messages"
+    }, payload => {
+      const updated = messageFromRow(payload.new);
+      setMessages(ms => ms.map(m => m.id === updated.id ? updated : m));
+    }).on("postgres_changes", {
+      event: "DELETE",
+      schema: "public",
+      table: "messages"
+    }, payload => {
+      const removedId = payload.old && payload.old.id;
+      if (!removedId) return;
+      setMessages(ms => ms.filter(m => m.id !== removedId));
+    }).subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [currentUser && currentUser.id]);
   const role = currentUser ? currentUser.role : null;
   const isAdmin = role === "Admin";
   const lockedRep = currentUser && currentUser.role === "Sales Rep" ? currentUser.repName || "" : null;
