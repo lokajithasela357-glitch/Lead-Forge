@@ -561,6 +561,8 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
   }
   .btn:hover{ transform:translateY(-1px); filter:brightness(1.08); box-shadow:0 10px 24px -6px rgba(0,136,255,0.65); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; box-shadow:none; transform:none; filter:none; }
+  .btn:disabled:hover{ transform:none; filter:none; box-shadow:none; }
   .btn.ghost{ background:transparent; border:1px solid var(--border); color:var(--text-secondary); box-shadow:none; }
   .btn.ghost:hover{ border-color:var(--border-strong); color:var(--text-primary); transform:none; filter:none; }
   .btn.danger-ghost{ background:transparent; border:1px solid transparent; color:var(--text-muted); padding:6px; box-shadow:none; }
@@ -623,6 +625,30 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   .app-loading{
     position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
     background:var(--page); color:var(--text-secondary); font-size:14px; font-weight:600;
+  }
+  .crash-screen{
+    position:fixed; inset:0; z-index:2000; display:flex; align-items:center; justify-content:center;
+    background:var(--page); padding:24px;
+  }
+  .crash-card{
+    max-width:440px; width:100%; text-align:center;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:16px;
+    padding:32px 28px; display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .crash-icon{
+    width:52px; height:52px; border-radius:50%; margin-bottom:8px;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(251,88,88,0.14); color:var(--status-critical);
+  }
+  .crash-title{ font-size:17px; font-weight:800; color:var(--text-primary); }
+  .crash-body{ font-size:13px; color:var(--text-secondary); line-height:1.55; margin-bottom:10px; }
+  .crash-card .btn{ width:100%; justify-content:center; margin-bottom:6px; }
+  .crash-details{ width:100%; text-align:left; margin-top:8px; }
+  .crash-details summary{ font-size:11.5px; color:var(--text-muted); cursor:pointer; font-weight:600; }
+  .crash-details pre{
+    margin-top:8px; max-height:180px; overflow:auto; font-size:10.5px; line-height:1.5;
+    color:var(--text-muted); background:var(--surface-2); border-radius:8px; padding:10px;
+    white-space:pre-wrap; word-break:break-word; text-align:left;
   }
   .password-field{ position:relative; }
   .password-field .input{ padding-right:38px; }
@@ -962,6 +988,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     background:var(--grad-primary); color:#fff; font-weight:800; font-size:24px; letter-spacing:.02em;
     animation:welcomeAvatarPulse 2.4s ease-in-out infinite;
   }
+  .welcome-avatar-photo{ object-fit:cover; background:#0B0F17; }
   .welcome-eyebrow{
     font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
     color:var(--text-muted); animation:welcomeTextIn .5s ease .1s both;
@@ -1097,6 +1124,41 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   .face-status-pill.enabled{ background:rgba(63,185,80,0.14); color:#3fb950; border-color:rgba(63,185,80,0.4); }
   .face-status-pill.disabled{ background:rgba(139,138,154,0.14); color:var(--text-muted); border-color:rgba(139,138,154,0.3); }
 
+  /* My Profile — photo + editable details */
+  .profile-card{ padding:24px; }
+  .profile-photo-row{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .profile-photo-wrap{ position:relative; width:88px; height:88px; flex:0 0 auto; }
+  .profile-photo{
+    width:88px; height:88px; border-radius:50%; object-fit:cover;
+    background:var(--grad-primary); color:#fff; font-weight:800; font-size:28px; letter-spacing:.02em;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-strong); box-shadow:0 0 0 4px var(--surface-2);
+  }
+  .profile-photo-fallback{ display:flex; align-items:center; justify-content:center; }
+  .profile-photo-edit-btn{
+    position:absolute; right:-4px; bottom:-4px; width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-family:inherit;
+    background:var(--grad-primary); color:#fff; border:2px solid var(--surface-1);
+    box-shadow:0 4px 12px -2px rgba(0,136,255,0.6); transition:transform .15s ease;
+  }
+  .profile-photo-edit-btn:hover{ transform:scale(1.08); }
+  .profile-photo-actions{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+  .profile-photo-name{ font-size:16px; font-weight:800; color:var(--text-primary); }
+  .profile-photo-buttons{ display:flex; align-items:center; gap:8px; }
+  .profile-photo-hint{ font-size:11.5px; color:var(--text-muted); }
+  .settings-form-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; margin-bottom:6px; padding-bottom:16px;
+    border-bottom:1px solid var(--border);
+  }
+  .settings-form-grid label{ display:flex; flex-direction:column; gap:6px; font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.02em; }
+  @media (max-width:560px){ .settings-form-grid{ grid-template-columns:1fr; } }
+  .settings-status{
+    margin-top:14px; font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:8px;
+  }
+  .settings-status.is-ok{ background:rgba(63,185,80,0.12); color:#3fb950; }
+  .settings-status.is-error{ background:rgba(251,88,88,0.12); color:var(--status-critical); }
+  .settings-save-row{ display:flex; justify-content:flex-end; margin-top:16px; }
+
   /* Role badges */
   .role-badge{
     display:inline-flex; align-items:center; font-size:10px; font-weight:800;
@@ -1148,6 +1210,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
     display:flex; align-items:center; justify-content:center;
     background:var(--grad-primary); color:#fff; font-weight:800; font-size:12px; letter-spacing:.02em;
   }
+  .profile-fab-photo{ object-fit:cover; background:#0B0F17; }
 
   /* Locked rep chip (Sales Rep header, replaces the rep selector) */
   .locked-rep-chip{
@@ -1976,7 +2039,9 @@ function profileFromRow(r) {
     role: r.role || "Sales Rep",
     repName: r.rep_name || "",
     isActive: r.is_active !== false,
-    lastLogin: r.last_login || null
+    lastLogin: r.last_login || null,
+    phone: r.phone || "",
+    avatarUrl: r.avatar_data || null
   };
 }
 function buFromRow(r) {
@@ -3754,7 +3819,11 @@ function WelcomeScreen({
     className: "welcome-content"
   }, /*#__PURE__*/React.createElement("div", {
     className: "welcome-avatar-ring"
-  }, /*#__PURE__*/React.createElement("span", {
+  }, user && user.avatarUrl ? /*#__PURE__*/React.createElement("img", {
+    className: "welcome-avatar welcome-avatar-photo",
+    src: user.avatarUrl,
+    alt: user.name || "Profile"
+  }) : /*#__PURE__*/React.createElement("span", {
     className: "welcome-avatar"
   }, initials(user && user.name))), /*#__PURE__*/React.createElement("div", {
     className: "welcome-eyebrow"
@@ -5084,7 +5153,11 @@ function ProfileFab({
     "aria-label": label
   }, /*#__PURE__*/React.createElement("span", {
     className: "profile-fab-ring"
-  }), /*#__PURE__*/React.createElement("span", {
+  }), user.avatarUrl ? /*#__PURE__*/React.createElement("img", {
+    className: "profile-fab-avatar profile-fab-photo",
+    src: user.avatarUrl,
+    alt: user.name || "Profile"
+  }) : /*#__PURE__*/React.createElement("span", {
     className: "profile-fab-avatar"
   }, initials(user.name)));
 }
@@ -8324,8 +8397,124 @@ function BusinessUnits({
 
 function AccountSettings({
   currentUser,
-  setCurrentUser
+  setCurrentUser,
+  setProfiles
 }) {
+  const [name, setName] = useState(currentUser.name || "");
+  const [phone, setPhone] = useState(currentUser.phone || "");
+  const [avatarPreview, setAvatarPreview] = useState(currentUser.avatarUrl || null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null); // { type: "ok" | "error", text }
+  const fileInputRef = useRef(null);
+  const dirty = name.trim() !== (currentUser.name || "").trim() || phone.trim() !== (currentUser.phone || "").trim() || (avatarPreview || null) !== (currentUser.avatarUrl || null);
+  function pickPhoto() {
+    if (fileInputRef.current) fileInputRef.current.click();
+  }
+  function handleFile(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus({
+        type: "error",
+        text: "Please choose an image file (JPG, PNG, GIF, etc.)."
+      });
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setStatus({
+        type: "error",
+        text: "That image is too large — please choose one under 8MB."
+      });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Center-crop to a square, then downscale to a fixed size — keeps
+        // every uploaded photo a consistent, storage-friendly size no matter
+        // what shape or resolution the original file was.
+        const size = 320;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const srcSize = Math.min(img.width, img.height);
+        const sx = (img.width - srcSize) / 2;
+        const sy = (img.height - srcSize) / 2;
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
+        setAvatarPreview(canvas.toDataURL("image/jpeg", 0.86));
+        setStatus(null);
+      };
+      img.onerror = () => setStatus({
+        type: "error",
+        text: "Couldn't read that image. Please try a different file."
+      });
+      img.src = reader.result;
+    };
+    reader.onerror = () => setStatus({
+      type: "error",
+      text: "Couldn't read that file. Please try again."
+    });
+    reader.readAsDataURL(file);
+  }
+  function removePhoto() {
+    setAvatarPreview(null);
+    setStatus(null);
+  }
+  async function handleSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setStatus({
+        type: "error",
+        text: "Name can't be empty."
+      });
+      return;
+    }
+    setSaving(true);
+    setStatus(null);
+    const trimmedPhone = phone.trim();
+    const {
+      error
+    } = await sbWriteOrQueue({
+      table: "profiles",
+      action: "update",
+      row: {
+        name: trimmedName,
+        phone: trimmedPhone,
+        avatar_data: avatarPreview
+      },
+      matchColumn: "id",
+      matchValue: currentUser.id
+    });
+    setSaving(false);
+    if (error) {
+      setStatus({
+        type: "error",
+        text: "Could not save: " + error.message
+      });
+      return;
+    }
+    setCurrentUser(cu => cu ? {
+      ...cu,
+      name: trimmedName,
+      phone: trimmedPhone,
+      avatarUrl: avatarPreview
+    } : cu);
+    if (setProfiles) {
+      setProfiles(ps => ps.map(p => p.id === currentUser.id ? {
+        ...p,
+        name: trimmedName,
+        phone: trimmedPhone,
+        avatarUrl: avatarPreview
+      } : p));
+    }
+    setStatus({
+      type: "ok",
+      text: "Profile updated."
+    });
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8334,22 +8523,73 @@ function AccountSettings({
     className: "page-title"
   }, "My Profile"), /*#__PURE__*/React.createElement("div", {
     className: "page-sub"
-  }, "Account details"))), /*#__PURE__*/React.createElement("div", {
+  }, "Manage your account details and photo"))), /*#__PURE__*/React.createElement("div", {
+    className: "card settings-card profile-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-wrap"
+  }, avatarPreview ? /*#__PURE__*/React.createElement("img", {
+    className: "profile-photo",
+    src: avatarPreview,
+    alt: name || "Profile photo"
+  }) : /*#__PURE__*/React.createElement("span", {
+    className: "profile-photo profile-photo-fallback"
+  }, initials(name)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "profile-photo-edit-btn",
+    onClick: pickPhoto,
+    title: "Change photo"
+  }, /*#__PURE__*/React.createElement(IconUpload, null))), /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-actions"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-name"
+  }, name || "Your name"), /*#__PURE__*/React.createElement(RoleBadge, {
+    role: currentUser.role
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-buttons"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn ghost",
+    onClick: pickPhoto
+  }, /*#__PURE__*/React.createElement(IconUpload, null), "\xA0 Upload Photo"), avatarPreview && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn danger-ghost",
+    onClick: removePhoto,
+    title: "Remove photo"
+  }, /*#__PURE__*/React.createElement(IconTrash, null))), /*#__PURE__*/React.createElement("div", {
+    className: "profile-photo-hint"
+  }, "JPG, PNG or GIF, from any file on your device. Square photos look best.")), /*#__PURE__*/React.createElement("input", {
+    ref: fileInputRef,
+    type: "file",
+    accept: "image/*",
+    style: {
+      display: "none"
+    },
+    onChange: handleFile
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "card settings-card",
     style: {
-      marginBottom: 16
+      marginTop: 16
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-title"
-  }, "Account")), /*#__PURE__*/React.createElement("div", {
-    className: "settings-row"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "settings-row-label"
-  }, "Name"), /*#__PURE__*/React.createElement("div", {
-    className: "settings-row-value"
-  }, currentUser.name)), /*#__PURE__*/React.createElement("div", {
+  }, "Account Details")), /*#__PURE__*/React.createElement("div", {
+    className: "settings-form-grid"
+  }, /*#__PURE__*/React.createElement("label", null, "Full Name", /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "Jane Smith"
+  })), /*#__PURE__*/React.createElement("label", null, "Phone Number", /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    type: "tel",
+    value: phone,
+    onChange: e => setPhone(e.target.value),
+    placeholder: "+1 555 000 0000"
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "settings-row"
   }, /*#__PURE__*/React.createElement("div", {
     className: "settings-row-label"
@@ -8361,9 +8601,24 @@ function AccountSettings({
     className: "settings-row-label"
   }, "Role"), /*#__PURE__*/React.createElement("div", {
     className: "settings-row-value"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "role-badge " + (currentUser.role === "Admin" ? "role-admin" : "role-rep")
-  }, currentUser.role)))));
+  }, /*#__PURE__*/React.createElement(RoleBadge, {
+    role: currentUser.role
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "settings-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "settings-row-label"
+  }, "Last Login"), /*#__PURE__*/React.createElement("div", {
+    className: "settings-row-value"
+  }, formatDateTime(currentUser.lastLogin))), status && /*#__PURE__*/React.createElement("div", {
+    className: "settings-status " + (status.type === "error" ? "is-error" : "is-ok")
+  }, status.text), /*#__PURE__*/React.createElement("div", {
+    className: "settings-save-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn",
+    disabled: !dirty || saving,
+    onClick: handleSave
+  }, saving ? "Saving…" : "Save Changes"))));
 }
 
 /* ---------------------------------------------------------------------- */
@@ -11091,10 +11346,68 @@ function App() {
     setCurrentUser: setCurrentUser
   }), tab === "settings" && /*#__PURE__*/React.createElement(AccountSettings, {
     currentUser: currentUser,
-    setCurrentUser: setCurrentUser
+    setCurrentUser: setCurrentUser,
+    setProfiles: setProfiles
   })));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
+
+/* ---------------------------------------------------------------------- */
+/* Error boundary — without this, ANY uncaught error while rendering       */
+/* (a bad field from the server, a stale cached shape, anything) unmounts  */
+/* the whole React tree and leaves a blank page with no way back short of */
+/* a manual reload. This catches that class of crash and shows a          */
+/* recoverable screen instead, with the actual error visible so it can be */
+/* reported/debugged instead of just "the screen went blank."             */
+/* ---------------------------------------------------------------------- */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      error: null
+    };
+  }
+  static getDerivedStateFromError(error) {
+    return {
+      error
+    };
+  }
+  componentDidCatch(error, info) {
+    console.error("LeadForge crashed:", error, info && info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "crash-screen"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "crash-card"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "crash-icon"
+      }, /*#__PURE__*/React.createElement(IconAlert, null)), /*#__PURE__*/React.createElement("div", {
+        className: "crash-title"
+      }, "Something went wrong"), /*#__PURE__*/React.createElement("div", {
+        className: "crash-body"
+      }, "LeadForge hit an unexpected error and couldn't continue. Your data is safe — reloading will get you back to where you were."), /*#__PURE__*/React.createElement("button", {
+        className: "btn",
+        onClick: () => window.location.reload()
+      }, "Reload LeadForge"), /*#__PURE__*/React.createElement("details", {
+        className: "crash-details"
+      }, /*#__PURE__*/React.createElement("summary", null, "Technical details"), /*#__PURE__*/React.createElement("pre", null, String(this.state.error && this.state.error.stack || this.state.error)))));
+    }
+    return this.props.children;
+  }
+}
+
+// Belt-and-suspenders: an error thrown inside an event handler or a promise
+// callback (not caught by the boundary above, which only covers render/
+// lifecycle) shouldn't be silently swallowed either — log it so it shows up
+// in the console instead of just "nothing happened."
+window.addEventListener("error", e => {
+  console.error("Uncaught error:", e.error || e.message);
+});
+window.addEventListener("unhandledrejection", e => {
+  console.error("Unhandled promise rejection:", e.reason);
+});
+ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(App, null)));
 </script>
 </body>
 </html>
