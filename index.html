@@ -4257,7 +4257,7 @@ function getNavItems(isAdmin) {
     id: "team",
     label: isAdmin ? "Team Analytics" : "My Performance",
     icon: /*#__PURE__*/React.createElement(IconUsers, null),
-    desc: isAdmin ? "Compare win rates, revenue and deal activity across the whole team." : "See how your win rate and revenue stack up over time."
+    desc: isAdmin ? "Compare win rates, revenue and deal activity across the whole team." : "See your win rate, revenue and Business Unit quota progress."
   }, ...(isAdmin ? [{
     id: "businessunits",
     label: "Business Units & Targets",
@@ -7287,6 +7287,39 @@ function TeamAnalytics({
   const myMonthlyQuota = useMemo(() => !isAdmin && myRep && repTargets ? computeRepTargetStats([myRep], repTargets, leads, now.getFullYear(), now.getMonth() + 1, null)[0] : null, [isAdmin, myRep, repTargets, leads]);
   const myAnnualQuota = useMemo(() => !isAdmin && myRep && repTargets ? computeRepTargetStats([myRep], repTargets, leads, now.getFullYear(), null, null)[0] : null, [isAdmin, myRep, repTargets, leads]);
   const myProductivity = useMemo(() => !isAdmin && myRep && log ? computeRepProductivityStats([myRep], log)[0] : null, [isAdmin, myRep, log]);
+
+  // Per-Business-Unit quota breakdown for a Sales Rep's own view — the
+  // aggregate cards above answer "how am I doing overall", this answers
+  // "how am I doing in each Business Unit my Admin has actually given me a
+  // target in" (only BUs with a monthly and/or annual allocation this year
+  // show up here at all — nothing to show for one they haven't been
+  // assigned a quota in).
+  const myBUQuotas = useMemo(() => {
+    if (isAdmin || !myRep || !repTargets) return [];
+    const year = now.getFullYear();
+    const buNames = Array.from(new Set(repTargets.filter(t => t.repName === myRep.name && t.year === year).map(t => t.businessUnit))).filter(Boolean).sort();
+    const zero = {
+      target: 0,
+      actual: 0,
+      remaining: 0,
+      pct: 0
+    };
+    return buNames.map(buName => {
+      const buMeta = businessUnits.find(b => b.name === buName);
+      const monthly = computeRepTargetStats([myRep], repTargets, leads, year, now.getMonth() + 1, buName)[0] || {
+        ...zero
+      };
+      const annual = computeRepTargetStats([myRep], repTargets, leads, year, null, buName)[0] || {
+        ...zero
+      };
+      return {
+        buName,
+        color: buMeta && buMeta.color || REP_PALETTE[0],
+        monthly,
+        annual
+      };
+    });
+  }, [isAdmin, myRep, repTargets, leads, businessUnits]);
   async function addRep() {
     const name = newRepName.trim();
     if (!name) return;
@@ -7589,7 +7622,70 @@ function TeamAnalytics({
     style: {
       color: targetStatusColor(myAnnualQuota.pct)
     }
-  }, formatRemaining(myAnnualQuota.target, myAnnualQuota.actual, fmt))))), /*#__PURE__*/React.createElement("div", {
+  }, formatRemaining(myAnnualQuota.target, myAnnualQuota.actual, fmt)))), /*#__PURE__*/React.createElement("div", {
+    className: "chart-head",
+    style: {
+      marginBottom: 2
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Your Targets by Business Unit")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub",
+    style: {
+      marginBottom: 12
+    }
+  }, myBUQuotas.length > 0 ? `The monthly and annual quotas your Admin has allocated to you, broken down across ${myBUQuotas.length} Business Unit${myBUQuotas.length === 1 ? "" : "s"}.` : "Your Admin hasn't allocated you a Business Unit target yet — check back once one's been set."), myBUQuotas.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "leaderboard-grid",
+    style: {
+      marginBottom: 16
+    }
+  }, myBUQuotas.map(q => /*#__PURE__*/React.createElement(BUQuotaCard, {
+    key: q.buName,
+    buName: q.buName,
+    buColor: q.color,
+    monthly: q.monthly,
+    annual: q.annual,
+    monthLabel: MONTH_NAMES[now.getMonth()],
+    year: now.getFullYear(),
+    fmt: fmt
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "card",
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Business Unit Target Summary")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, MONTH_NAMES[now.getMonth()], " ", now.getFullYear(), " monthly quota alongside full-year progress, per Business Unit."), /*#__PURE__*/React.createElement("div", {
+    className: "table-wrap",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null, "Closed MTD"), /*#__PURE__*/React.createElement("th", null, "Annual Target"), /*#__PURE__*/React.createElement("th", null, "Closed YTD"), /*#__PURE__*/React.createElement("th", null, "% of Annual"))), /*#__PURE__*/React.createElement("tbody", null, myBUQuotas.map(q => /*#__PURE__*/React.createElement("tr", {
+    key: q.buName
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "rep-badge",
+    style: {
+      color: q.color,
+      borderColor: hexToRgba(q.color, 0.4),
+      background: hexToRgba(q.color, 0.12)
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "rep-dot",
+    style: {
+      background: q.color
+    }
+  }), q.buName)), /*#__PURE__*/React.createElement("td", null, fmt(q.monthly.target)), /*#__PURE__*/React.createElement("td", null, fmt(q.monthly.actual)), /*#__PURE__*/React.createElement("td", null, fmt(q.annual.target)), /*#__PURE__*/React.createElement("td", null, fmt(q.annual.actual)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      color: targetStatusColor(q.annual.pct),
+      fontWeight: 700
+    }
+  }, q.annual.pct, "%")))), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
+    className: "log-totals-row"
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "Total")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.monthly.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.monthly.actual, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.annual.target, 0)))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, fmt(myBUQuotas.reduce((s, q) => s + q.annual.actual, 0)))), /*#__PURE__*/React.createElement("td", null, "—")))))))), /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       marginBottom: 16
@@ -7705,6 +7801,72 @@ function RepQuotaCard({
   }, rep.name.split(" ").map(w => w[0]).slice(0, 2).join("")), /*#__PURE__*/React.createElement("div", {
     className: "leaderboard-name"
   }, rep.name)), /*#__PURE__*/React.createElement("div", {
+    className: "quota-period"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "quota-period-label"
+  }, monthLabel, " ", year, " ", /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "Monthly")), /*#__PURE__*/React.createElement("div", {
+    className: "quota-period-figures"
+  }, fmt(monthly.actual), " ", /*#__PURE__*/React.createElement("span", {
+    className: "quota-of"
+  }, "of"), " ", fmt(monthly.target)), /*#__PURE__*/React.createElement(TargetProgressBar, {
+    pct: monthly.pct,
+    label: `${monthly.pct}% of monthly target`
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "quota-remaining",
+    style: {
+      color: targetStatusColor(monthly.pct)
+    }
+  }, formatRemaining(monthly.target, monthly.actual, fmt))), /*#__PURE__*/React.createElement("div", {
+    className: "quota-period"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "quota-period-label"
+  }, year, " ", /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "Annual")), /*#__PURE__*/React.createElement("div", {
+    className: "quota-period-figures"
+  }, fmt(annual.actual), " ", /*#__PURE__*/React.createElement("span", {
+    className: "quota-of"
+  }, "of"), " ", fmt(annual.target)), /*#__PURE__*/React.createElement(TargetProgressBar, {
+    pct: annual.pct,
+    label: `${annual.pct}% of annual target`
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "quota-remaining",
+    style: {
+      color: targetStatusColor(annual.pct)
+    }
+  }, formatRemaining(annual.target, annual.actual, fmt))));
+}
+
+// A Sales Rep's own per-Business-Unit quota card — same monthly/annual
+// progress layout as RepQuotaCard above, just headed by the Business Unit's
+// own name/color instead of a rep avatar, since the rep here is always "me".
+function BUQuotaCard({
+  buName,
+  buColor,
+  monthly,
+  annual,
+  monthLabel,
+  year,
+  fmt
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card quota-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "quota-card-head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "rep-avatar",
+    style: {
+      background: hexToRgba(buColor, 0.18),
+      color: buColor,
+      borderColor: hexToRgba(buColor, 0.4)
+    }
+  }, /*#__PURE__*/React.createElement(IconTarget, {
+    color: buColor
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "leaderboard-name"
+  }, buName)), /*#__PURE__*/React.createElement("div", {
     className: "quota-period"
   }, /*#__PURE__*/React.createElement("div", {
     className: "quota-period-label"
@@ -10966,9 +11128,13 @@ function App() {
 
   // Safety guard: if a non-admin somehow lands on an admin-only tab (e.g. after
   // switching accounts without a tab reset), bounce back to the dashboard.
+  // NOTE: "team" is deliberately NOT included here — that id is shared between
+  // Admins (Team Analytics) and Sales Reps (My Performance, incl. their own
+  // Business Unit quota breakdown), so it's a legitimate destination for both
+  // roles. Only "users" and "businessunits" are truly admin-only.
   // (Declared before any early return so hook order stays stable across renders.)
   useEffect(() => {
-    if ((tab === "team" || tab === "users" || tab === "businessunits") && !isAdmin) {
+    if ((tab === "users" || tab === "businessunits") && !isAdmin) {
       setTab("home");
     }
   }, [tab, isAdmin]);
