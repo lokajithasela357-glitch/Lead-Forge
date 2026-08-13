@@ -7829,6 +7829,37 @@ function LeadPipeline({
       setLeads(prevLeads);
     }
   }
+  // Unlike bulk-assigning a Rep (Admin-only, since that changes who owns the
+  // deal), sorting leads into a Business Unit is more like a filing/tagging
+  // decision -- both Admins and Sales Reps can do it, matching the same
+  // "select several, or select every filtered lead" mechanism above.
+  async function bulkAssignBU(buName) {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const label = buName || "Unassigned";
+    if (!window.confirm(`Assign ${ids.length} lead${ids.length === 1 ? "" : "s"} to ${label}?`)) return;
+    const prevLeads = leads;
+    setLeads(ls => ls.map(l => selectedIds.has(l.id) ? {
+      ...l,
+      businessUnit: buName
+    } : l));
+    clearSelection();
+    const {
+      error
+    } = await sbWriteOrQueue({
+      table: "leads",
+      action: "update",
+      row: {
+        business_unit: buName
+      },
+      matchColumn: "id",
+      matchValues: ids
+    });
+    if (error) {
+      window.alert("Could not reassign some leads' Business Unit: " + error.message);
+      setLeads(prevLeads);
+    }
+  }
   function stageChange(id, stage) {
     const lead = leads.find(l => l.id === id);
     if (!lead) return;
@@ -8011,7 +8042,24 @@ function LeadPipeline({
   }, "Unassigned"), reps.map(r => /*#__PURE__*/React.createElement("option", {
     key: r.id,
     value: r.name
-  }, r.name))), /*#__PURE__*/React.createElement("button", {
+  }, r.name))), view !== "bin" && /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: "",
+    title: "Bulk-assign the selected leads to a Business Unit",
+    onChange: e => {
+      const v = e.target.value;
+      e.target.value = "";
+      if (v !== "") bulkAssignBU(v === "__unassigned__" ? "" : v);
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "",
+    disabled: true
+  }, "Assign BU…"), /*#__PURE__*/React.createElement("option", {
+    value: "__unassigned__"
+  }, "Unassigned"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name
+  }, b.name))), /*#__PURE__*/React.createElement("button", {
     className: "btn ghost",
     onClick: clearSelection
   }, "Clear"), /*#__PURE__*/React.createElement("button", {
