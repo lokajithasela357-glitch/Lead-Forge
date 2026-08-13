@@ -855,6 +855,27 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .rep-dot{ width:7px; height:7px; border-radius:50%; box-shadow:0 0 6px -1px currentColor; flex:0 0 auto; }
 
+  /* Business Unit badges — same visual pattern as rep badges, so a lead's
+     assigned Business Unit reads at a glance anywhere it's shown (the Lead
+     Pipeline table, the lead drawer, Rep Targets allocations, Productivity
+     Log…), each BU keeping its own consistent color everywhere. */
+  .bu-badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
+    padding:4px 9px; border-radius:99px; border:1px solid var(--border-strong); white-space:nowrap;
+  }
+  .bu-dot{ width:7px; height:7px; border-radius:50%; box-shadow:0 0 6px -1px currentColor; flex:0 0 auto; }
+  /* Wraps a native Business Unit <select> (or the BU name input on the
+     Business Units management page) with a small colored dot reflecting
+     the current value — <option> elements can't be reliably colored
+     cross-browser, so this is what keeps a BU's color visible even while
+     picking it from a dropdown. */
+  .bu-select-wrap{ display:flex; align-items:center; gap:8px; }
+  .bu-select-wrap .select, .bu-select-wrap .input{ flex:1 1 auto; min-width:0; }
+  .bu-select-dot{
+    width:9px; height:9px; border-radius:50%; flex:0 0 auto;
+    box-shadow:0 0 6px -1px currentColor;
+  }
+
   /* Filters bar (Lead Pipeline) */
   .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; }
   .search-field{
@@ -919,6 +940,40 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     50%{ filter:drop-shadow(0 0 34px rgba(255,153,0,0.6)); transform:scale(1.035); }
   }
   @keyframes splashWordmarkIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  /* Forging effect: hammer swings down onto the anvil (the logo mark),
+     with a bright orange "strike" flash at impact, then rebounds and
+     settles -- applied to every logo placement in the app. */
+  @keyframes forgeHammer{
+    0%, 46%{ transform:rotate(0deg) scale(1); filter:brightness(1); }
+    56%{ transform:rotate(-30deg) scale(1.02); filter:brightness(1.05); }
+    64%{ transform:rotate(8deg) scale(0.95); filter:brightness(1.6) drop-shadow(0 0 10px rgba(255,153,0,0.85)); }
+    72%{ transform:rotate(-5deg) scale(1.03); filter:brightness(1.1); }
+    80%{ transform:rotate(2deg) scale(0.99); filter:brightness(1); }
+    88%, 100%{ transform:rotate(0deg) scale(1); filter:brightness(1); }
+  }
+  .forge-anim{
+    transform-origin:50% 82%;
+    animation:forgeHammer 4s ease-in-out infinite;
+    will-change:transform, filter;
+  }
+  /* The splash logo already has its own blue/orange glow-pulse animation
+     (splashLogoPulse) -- this merges that glow with the same hammer-swing
+     motion into one combined keyframe so the two don't fight over the
+     shorthand `animation` property. The more specific ".splash-logo.forge-anim"
+     selector wins over the plain ".forge-anim" rule above. */
+  @keyframes splashLogoForge{
+    0%, 100%{ filter:drop-shadow(0 0 18px rgba(0,136,255,0.55)); transform:scale(1) rotate(0deg); }
+    40%{ filter:drop-shadow(0 0 34px rgba(255,153,0,0.6)); transform:scale(1.035) rotate(0deg); }
+    56%{ filter:drop-shadow(0 0 30px rgba(255,153,0,0.6)); transform:scale(1.04) rotate(-30deg); }
+    64%{ filter:drop-shadow(0 0 40px rgba(255,153,0,0.95)) brightness(1.6); transform:scale(0.97) rotate(8deg); }
+    72%{ filter:drop-shadow(0 0 30px rgba(255,153,0,0.7)); transform:scale(1.03) rotate(-5deg); }
+    80%{ filter:drop-shadow(0 0 24px rgba(0,136,255,0.6)); transform:scale(1.01) rotate(2deg); }
+    92%{ filter:drop-shadow(0 0 18px rgba(0,136,255,0.55)); transform:scale(1) rotate(0deg); }
+  }
+  .splash-logo.forge-anim{
+    animation:splashLogoForge 4.8s ease-in-out infinite;
+    will-change:transform, filter;
+  }
   @keyframes sparkFloat{
     0%{ opacity:0; transform:translateY(0) scale(0.6); }
     15%{ opacity:1; transform:translateY(-6px) scale(1); }
@@ -1394,6 +1449,28 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .bulk-action-count{ font-size:13px; font-weight:700; color:var(--text-primary); }
   .bulk-action-spacer{ flex:1; }
 
+  /* "Select all N leads" banner — appears once every row on the current
+     page is checked, the same pattern Gmail-style inboxes use so a giant
+     filtered list never has to render (or get bulk-actioned) all at once. */
+  .select-all-banner{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin-bottom:14px; padding:10px 14px; font-size:12.5px; color:var(--text-secondary);
+    background:rgba(0,136,255,0.08); border:1px solid rgba(0,136,255,0.3); border-radius:10px;
+  }
+  .select-all-banner-link{
+    background:none; border:none; padding:0; cursor:pointer; font-family:inherit;
+    font-size:12.5px; font-weight:700; color:var(--accent-blue);
+  }
+  .select-all-banner-link:hover{ text-decoration:underline; }
+
+  /* Lead Pipeline table pagination */
+  .pipeline-pagination{
+    display:flex; align-items:center; justify-content:center; gap:16px;
+    margin-top:16px; padding-top:16px; border-top:1px solid var(--border);
+  }
+  .pipeline-pagination-info{ font-size:12.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
+  .pipeline-pagination .btn svg{ width:13px; height:13px; }
+
   /* ---------------------------------------------------------------- */
   /* Online / offline connectivity indicator                          */
   /* ---------------------------------------------------------------- */
@@ -1629,6 +1706,59 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:var(--text-primary); margin-bottom:12px;
   }
 
+  /* Chat file attachments — composer control + inline rendered view. */
+  .message-attach-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .message-attach-btn{
+    display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+    padding:6px 10px; font-size:11.5px; font-weight:700; color:var(--text-secondary);
+    cursor:pointer; font-family:inherit; transition:border-color .15s ease, color .15s ease;
+  }
+  .message-attach-btn:hover{ border-color:var(--accent-blue); color:var(--accent-blue); }
+  .message-attach-btn svg{ width:13px; height:13px; }
+  .message-attach-chip{
+    display:inline-flex; align-items:center; gap:7px; max-width:100%;
+    background:rgba(0,136,255,0.1); border:1px solid rgba(0,136,255,0.3); border-radius:8px;
+    padding:5px 8px 5px 10px; font-size:11.5px; color:var(--text-primary);
+  }
+  .message-attach-chip-name{
+    font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;
+  }
+  .message-attach-chip-size{ color:var(--text-muted); font-weight:600; white-space:nowrap; }
+  .message-attach-uploading svg{ animation:messageAttachSpin 0.9s linear infinite; }
+  @keyframes messageAttachSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  .message-attach-remove{
+    background:transparent; border:none; color:var(--text-muted); cursor:pointer;
+    padding:2px; display:flex; align-items:center; justify-content:center; border-radius:6px;
+    transition:color .15s ease, background .15s ease;
+  }
+  .message-attach-remove:hover{ color:var(--status-critical); background:rgba(251,88,88,0.14); }
+  .message-attach-remove svg{ width:11px; height:11px; }
+  .message-attach-error{ font-size:11px; font-weight:600; color:var(--status-critical); }
+
+  .message-attachment-wrap{ margin-top:2px; }
+  .message-attachment-label{
+    display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+    color:var(--text-muted); margin-top:6px; text-transform:uppercase; letter-spacing:.02em;
+  }
+  .message-attachment-label svg{ width:11px; height:11px; }
+  .message-attachment-img-link{ display:inline-block; margin-top:7px; line-height:0; }
+  .message-attachment-img{
+    max-width:100%; max-height:180px; border-radius:9px; border:1px solid var(--border-strong); display:block;
+  }
+  .message-attachment-file{
+    display:flex; align-items:center; gap:8px; margin-top:7px; padding:8px 10px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border-strong); border-radius:9px;
+    color:inherit; text-decoration:none; max-width:100%;
+  }
+  .message-attachment-file:hover{ border-color:var(--accent-blue); }
+  .message-attachment-file svg{ flex:0 0 auto; color:var(--accent-blue); }
+  .message-attachment-file-name{
+    font-size:12px; font-weight:700; color:var(--text-primary);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; min-width:0;
+  }
+  .message-attachment-file-size{ font-size:10.5px; color:var(--text-muted); font-weight:600; flex:0 0 auto; }
+  .message-attachment-file-download{ flex:0 0 auto; color:var(--text-muted); display:flex; }
 
   /* ------------------------------------------------------------------ */
   /* Responsive layout — off-canvas sidebar + tighter spacing on        */
@@ -2226,7 +2356,18 @@ function messageFromRow(r) {
     senderName: r.sender_name || "Admin",
     recipient: r.recipient || "All",
     body: r.body || "",
-    readBy: Array.isArray(r.read_by) ? r.read_by : []
+    readBy: Array.isArray(r.read_by) ? r.read_by : [],
+    // `attachment_path` (a Storage object path) is the current, normal case.
+    // `attachment_data` (inline base64) only shows up on messages sent
+    // before attachments moved to Storage — keep reading it so those old
+    // messages still render, via MessageAttachmentView's legacy fallback.
+    attachment: r.attachment_name ? {
+      name: r.attachment_name,
+      type: r.attachment_type || "application/octet-stream",
+      size: r.attachment_size || 0,
+      path: r.attachment_path || null,
+      data: r.attachment_data || ""
+    } : null
   };
 }
 function messageToRow(m) {
@@ -2234,7 +2375,15 @@ function messageToRow(m) {
     sender_name: m.senderName || "Admin",
     recipient: m.recipient || "All",
     body: m.body || "",
-    read_by: m.readBy || []
+    read_by: m.readBy || [],
+    attachment_name: m.attachment ? m.attachment.name : null,
+    attachment_type: m.attachment ? m.attachment.type : null,
+    attachment_size: m.attachment ? m.attachment.size : null,
+    // Going forward this is always the Storage object path returned by
+    // uploadChatAttachment — never the raw file contents — so a message
+    // row stays a few bytes no matter how large the actual attachment is.
+    attachment_path: m.attachment ? m.attachment.path || null : null,
+    attachment_data: null
   };
 }
 
@@ -2482,6 +2631,18 @@ function repColor(reps, name) {
   const idx = reps.findIndex(r => r.name === name);
   if (idx === -1) return "#8b8a9a";
   return reps[idx].color || REP_PALETTE[idx % REP_PALETTE.length];
+}
+
+// Same idea as repColor, but for Business Units — every BU already gets a
+// palette color assigned the moment it's created (see addBU), so this is
+// mostly just a lookup; the palette fallback only kicks in for a name that
+// doesn't match any known BU (e.g. stale historical text on an old lead
+// after its Business Unit was deleted or renamed).
+function businessUnitColor(businessUnits, name) {
+  if (!name) return "#8b8a9a";
+  const idx = (businessUnits || []).findIndex(b => b.name === name);
+  if (idx === -1) return "#8b8a9a";
+  return businessUnits[idx].color || REP_PALETTE[idx % REP_PALETTE.length];
 }
 
 /* --- CSV export (leads) --- */
@@ -2884,6 +3045,66 @@ function IconMail() {
     d: "M4 7l7.2 5.8a1.3 1.3 0 001.6 0L20 7",
     stroke: "currentColor",
     strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }));
+}
+function IconPaperclip() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "15",
+    height: "15",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M7.5 12.5l6.6-6.6a3.2 3.2 0 014.5 4.5l-8.1 8.1a5.2 5.2 0 01-7.4-7.4l7.6-7.6",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }));
+}
+function IconFile() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "16",
+    height: "16",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M6 3.5h8l4 4V19a1.4 1.4 0 01-1.4 1.4H6.4A1.4 1.4 0 015 19V4.9A1.4 1.4 0 016 3.5z",
+    stroke: "currentColor",
+    strokeWidth: "1.7",
+    strokeLinejoin: "round"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M14 3.5V8h4",
+    stroke: "currentColor",
+    strokeWidth: "1.7",
+    strokeLinejoin: "round"
+  }));
+}
+function IconImage() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "15",
+    height: "15",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "3.5",
+    y: "4.5",
+    width: "17",
+    height: "15",
+    rx: "2",
+    stroke: "currentColor",
+    strokeWidth: "1.7"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "9",
+    cy: "10",
+    r: "1.7",
+    stroke: "currentColor",
+    strokeWidth: "1.5"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M4.5 17l4.8-4.8a1.5 1.5 0 012.1 0l2.3 2.3M14 14.5l1.4-1.4a1.5 1.5 0 012.1 0l2 2",
+    stroke: "currentColor",
+    strokeWidth: "1.6",
     strokeLinecap: "round",
     strokeLinejoin: "round"
   }));
@@ -3776,6 +3997,13 @@ function defaultLeads() {
 
 /* --- Archive / Recycle Bin ------------------------------------------- */
 const TRASH_RETENTION_DAYS = 30;
+// Lead Pipeline table pagination — keeps a filtered list of any size from
+// turning into one very long, slow-to-scroll sheet. "Select all" on the
+// header checkbox only ever covers the leads visible on the current page;
+// selecting every filtered lead across every page is a deliberate separate
+// action (the banner that appears once a full page is selected), so a stray
+// click can't silently select thousands of rows at once.
+const LEADS_PAGE_SIZE = 8;
 function trashExpiresAt(deletedAtISO) {
   const d = new Date(deletedAtISO);
   if (isNaN(d.getTime())) return null;
@@ -3876,7 +4104,7 @@ function SplashScreen({
   })), /*#__PURE__*/React.createElement("div", {
     className: "splash-content"
   }, /*#__PURE__*/React.createElement("img", {
-    className: "splash-logo",
+    className: "splash-logo forge-anim",
     src: LOGO_ICON_LG,
     alt: "LeadForge"
   }), /*#__PURE__*/React.createElement("div", {
@@ -4133,7 +4361,7 @@ function LoginScreen({
   }, /*#__PURE__*/React.createElement("div", {
     className: "login-brand-logo-badge"
   }, /*#__PURE__*/React.createElement("img", {
-    className: "login-logo-lg",
+    className: "login-logo-lg forge-anim",
     src: LOGO_ICON_LG,
     alt: "LeadForge"
   })), /*#__PURE__*/React.createElement("div", {
@@ -4489,7 +4717,7 @@ function Sidebar({
   }, /*#__PURE__*/React.createElement("div", {
     className: "brand"
   }, /*#__PURE__*/React.createElement("img", {
-    className: "brand-mark-img",
+    className: "brand-mark-img forge-anim",
     src: LOGO_ICON_SM,
     alt: "LeadForge"
   }), !collapsed && /*#__PURE__*/React.createElement("div", {
@@ -5277,25 +5505,26 @@ function LockedRepChip({
 }
 
 /* ---------------------------------------------------------------------- */
-/* Message Center — Admin -> Sales Rep announcements, header bell icon    */
+/* Message Center — private 1-on-1 messaging + Admin-only announcements  */
 /* ---------------------------------------------------------------------- */
 
-// A message is one of four shapes, distinguished purely by `recipient` and
-// whether `senderName` matches a known rep/admin — no parent/thread id needed:
-//   1. Admin broadcast: recipient = "All", sender = the Admin. (Announcements tab)
-//   2. Admin <-> Rep shared Team Inbox: recipient = that rep's name (Admin -> Rep) or
-//      the literal "Admin" (Rep -> the whole Admin team), sender = whoever sent it.
-//      Every Admin can see and reply to this one — it's a shared queue, not a DM.
-//   3. Rep -> Rep (any registered rep): recipient = the other rep's name, sender = a rep's name.
-//   4. Private, one-on-one Admin thread: recipient = one specific Admin's own
-//      name, sender = whoever sent it (a Rep messaging one Admin directly
-//      instead of the shared queue, OR one Admin messaging another). Only
-//      that sender/recipient pair — not every Admin — can see these; that
-//      privacy is enforced by the messages_select RLS policy server-side,
-//      not just hidden client-side.
-// A private thread with Admin, a rep, or another named person is just
-// "everything where I'm the sender or the direct recipient", found from
-// those two fields.
+// A message is one of exactly TWO shapes now, distinguished purely by
+// `recipient` — no shared "team inbox" bucket, no parent/thread id needed:
+//   1. Announcement: recipient = "All", sender = an Admin. Visible to
+//      everyone (every Admin and every Sales Rep) — the only broadcast shape.
+//   2. Private, one-on-one thread: recipient = the exact real name of ONE
+//      other person (an Admin's own name, or a Sales Rep's own name),
+//      sender = whoever sent it, also by their own real name. Whether it's
+//      Admin <-> Admin, Admin <-> Rep, or Rep <-> Rep, the rule is identical:
+//      ONLY the two people named as sender/recipient can ever see it — no
+//      admin-oversight carve-out for any pairing. This is enforced by the
+//      messages_select RLS policy server-side (see
+//      leadforge_messages_true_privacy_migration.sql), not just hidden
+//      client-side, so it can't be read directly from Supabase either.
+// A private thread with anyone is just "everything where I'm the sender or
+// the direct recipient", found from those two fields — one lookup covers
+// every pairing, so there's only one conversation-list UI needed for both
+// roles instead of separate "Team Inbox" / "Admins" / "Sales Reps" tabs.
 function isRepName(name, reps) {
   return reps.some(r => r.name === name);
 }
@@ -5304,25 +5533,24 @@ function isAdminName(name, profiles) {
 }
 
 // Every other active Sales Rep registered in the system is a valid peer to
-// message directly, in addition to Admin — not limited to a shared Business
-// Unit.
-function computeTeammates(myRep, reps, repTargets) {
+// message directly — not limited to a shared Business Unit.
+function computeTeammates(myRep, reps) {
   if (!myRep) return [];
   return reps.filter(r => r.name !== myRep);
 }
 
-// Every registered Admin (minus whoever's currently looking) is a valid
-// target for a private one-on-one thread — this is what lets a Sales Rep
-// message one specific Admin instead of the shared Team Inbox, and what
-// lets two Admins message each other directly.
+// Every registered, active Admin (minus whoever's currently looking) is a
+// valid target for a private one-on-one thread — this is what lets a Sales
+// Rep message one specific Admin, and lets two Admins message each other.
 function computeOtherAdmins(myName, profiles) {
   return (profiles || []).filter(p => p.role === "Admin" && p.isActive !== false && p.name && p.name !== myName);
 }
 
 // Builds a two-level inbox (conversation list + open thread) for `myName`
-// messaging any of `people` (each needs a `.name`) by real name — shared by
-// Admin's Team Inbox (people = reps) and the new private Admins panel
-// (people = other Admins, on either side). Newest-active conversation first.
+// messaging any of `people` (each needs a `.name`) by real name — one
+// contact list covers every pairing (Admin<->Admin, Admin<->Rep, Rep<->Rep)
+// since privacy is always just "sender or recipient is me". Newest-active
+// conversation first, unmessaged contacts alphabetically after that.
 function buildConversations(people, messagesAsc, myName) {
   return people.map(p => {
     const thread = messagesAsc.filter(m => m.recipient === p.name && m.senderName === myName || m.senderName === p.name && m.recipient === myName);
@@ -5341,36 +5569,286 @@ function buildConversations(people, messagesAsc, myName) {
     return a.person.name.localeCompare(b.person.name);
   });
 }
+
+// A short, subtle notification chime — synthesized with the Web Audio API
+// instead of shipping an audio file, so there's nothing to load or fail to
+// fetch. Reused for both "your message just sent" (in sendAnnouncement /
+// sendDirectMessage) and "a new message just arrived" (the realtime INSERT
+// handler), giving real feedback on both sides of a conversation. The
+// AudioContext is created lazily and reused — most browsers only allow audio
+// to play after some user gesture has happened on the page, which by the
+// time either of those call sites fires (a click to send, or simply having
+// opened/used the app at all) has always already occurred.
+let __msgChimeCtx = null;
+function playMessageChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!__msgChimeCtx) __msgChimeCtx = new Ctx();
+    const ctx = __msgChimeCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, now);
+    gain.gain.setValueAtTime(0, now);
+    // Quick fade in, then a gentle exponential decay -- a soft "beep"
+    // rather than an abrupt buzzer, at a low enough volume to not startle.
+    gain.gain.linearRampToValueAtTime(0.15, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.26);
+  } catch (e) {
+    // Sound is a nice-to-have, never let it break sending/receiving messages.
+  }
+}
+
+// Chat file attachments — uploaded to a dedicated Supabase Storage bucket
+// ("chat-attachments") rather than embedded as base64 text directly on the
+// message row.
+//
+// WHY: embedding a multi-MB base64 string in a `messages` row is what was
+// actually breaking delivery to the recipient. That table is replicated
+// live over Supabase Realtime (see the "messages-live-" channel below) so
+// every other open tab gets pushed every insert instantly — but a Postgres
+// change-data-capture payload that large routinely gets dropped or simply
+// never reaches the realtime socket, and the same oversized text field can
+// just as easily blow past the REST API's request-size ceiling on the
+// INSERT itself. Either way the sender's own optimistic UI still shows the
+// message fine (it's already sitting in local state before the network
+// call even resolves), while the recipient never receives a thing — exactly
+// the bug reported. Storing only a short storage PATH on the row keeps the
+// row itself tiny no matter how large the actual file is, so it always
+// replicates and inserts cleanly; the real bytes live in Storage and are
+// fetched by URL when displayed. See leadforge_chat_attachments_storage_migration.sql.
+const MAX_MESSAGE_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";
+function sanitizeAttachmentFileName(name) {
+  return (name || "file").replace(/[^a-zA-Z0-9_.-]/g, "_").slice(-120);
+}
+async function uploadChatAttachment(file) {
+  if (file.size > MAX_MESSAGE_ATTACHMENT_BYTES) {
+    throw new Error("That file is too large — please choose one under 15MB.");
+  }
+  const path = `${uuidv4()}-${sanitizeAttachmentFileName(file.name)}`;
+  const {
+    error
+  } = await sb.storage.from(CHAT_ATTACHMENTS_BUCKET).upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false
+  });
+  if (error) throw new Error(error.message || "Couldn't upload that file. Please try again.");
+  return {
+    name: file.name,
+    type: file.type || "application/octet-stream",
+    size: file.size,
+    path
+  };
+}
+// The bucket is public, so this is a plain, non-expiring URL lookup with no
+// network round trip — same call every time, safe to use directly as an
+// <img>/<a> src.
+function chatAttachmentUrl(path) {
+  if (!path) return null;
+  const {
+    data
+  } = sb.storage.from(CHAT_ATTACHMENTS_BUCKET).getPublicUrl(path);
+  return data ? data.publicUrl : null;
+}
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+// Shared attach-a-file control used by both composers (announcements and a
+// private thread reply) — TWO ways to pick something to send, both landing
+// in the same single attachment slot on the message: a generic "Attach
+// file" (any file type, paperclip icon) and a dedicated "Add Photo" (images
+// only, camera icon) for the common case of just wanting to send a picture
+// without hunting for it among every file type. Whichever one is used last
+// wins — a message still carries exactly one attachment.
+function MessageAttachControl({
+  attachment,
+  onAttach,
+  onRemove,
+  uploadError,
+  uploading,
+  onUploadingChange
+}) {
+  const fileRef = useRef(null);
+  const photoRef = useRef(null);
+  async function handleChange(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    onUploadingChange(true);
+    try {
+      const att = await uploadChatAttachment(file);
+      onAttach(att);
+    } catch (err) {
+      onAttach(null, err.message || "Couldn't attach that file.");
+    } finally {
+      onUploadingChange(false);
+    }
+  }
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    style: {
+      display: "none"
+    },
+    onChange: handleChange,
+    disabled: uploading
+  }), /*#__PURE__*/React.createElement("input", {
+    ref: photoRef,
+    type: "file",
+    accept: "image/*",
+    style: {
+      display: "none"
+    },
+    onChange: handleChange,
+    disabled: uploading
+  }), uploading && /*#__PURE__*/React.createElement("div", {
+    className: "message-attach-chip message-attach-uploading"
+  }, /*#__PURE__*/React.createElement(IconSync, null), /*#__PURE__*/React.createElement("span", {
+    className: "message-attach-chip-name"
+  }, "Uploading…")), !uploading && attachment && /*#__PURE__*/React.createElement("div", {
+    className: "message-attach-chip"
+  }, (attachment.type || "").startsWith("image/") ? /*#__PURE__*/React.createElement(IconImage, null) : /*#__PURE__*/React.createElement(IconFile, null), /*#__PURE__*/React.createElement("span", {
+    className: "message-attach-chip-name"
+  }, attachment.name), /*#__PURE__*/React.createElement("span", {
+    className: "message-attach-chip-size"
+  }, formatFileSize(attachment.size)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "message-attach-remove",
+    title: "Remove attachment",
+    onClick: onRemove
+  }, /*#__PURE__*/React.createElement(IconX, null))), uploadError && /*#__PURE__*/React.createElement("div", {
+    className: "login-error",
+    style: {
+      fontSize: 11.5,
+      padding: "7px 10px"
+    }
+  }, uploadError), /*#__PURE__*/React.createElement("div", {
+    className: "message-attach-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "message-attach-btn",
+    title: "Attach a file",
+    disabled: uploading,
+    onClick: () => fileRef.current && fileRef.current.click()
+  }, /*#__PURE__*/React.createElement(IconPaperclip, null), "\xA0 ", attachment ? "Change file" : "Attach file"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "message-attach-btn",
+    title: "Upload a picture",
+    disabled: uploading,
+    onClick: () => photoRef.current && photoRef.current.click()
+  }, /*#__PURE__*/React.createElement(IconImage, null), "\xA0 ", attachment ? "Change photo" : "Add Photo")));
+}
+
+// Converts a (potentially large) base64 data: URL into an in-memory Blob
+// object URL for use as a download link's href — kept ONLY as a fallback
+// for attachments sent before this app moved to Storage-backed uploads
+// (see uploadChatAttachment above), which stored the whole file inline as
+// base64 text on the message row. Chromium enforces a practical length
+// limit on URLs (including data: URLs) of a couple megabytes, so a multi-MB
+// attachment encoded straight into an <a href="data:..."> can silently fail
+// to download for the person opening it. A Blob URL has no such limit.
+// Falls back to the raw data: URL (better than nothing) if conversion fails.
+function useLegacyDataUrlDownload(dataUrl) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl = null;
+    if (dataUrl) {
+      fetch(dataUrl).then(res => res.blob()).then(blob => {
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setUrl(createdUrl);
+      }).catch(() => {
+        if (!cancelled) setUrl(dataUrl);
+      });
+    } else {
+      setUrl(null);
+    }
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [dataUrl]);
+  return url || dataUrl || null;
+}
+
+// Renders a message's attachment, if it has one — an inline thumbnail for
+// images, or a generic downloadable file chip for anything else, always with
+// a small "an attachment was sent" label so it's never mistaken for a blank
+// message. A Storage-backed attachment (attachment.path) resolves to a
+// plain, permanent public URL with zero extra work — that's the normal case
+// going forward. A handful of attachments sent before this fix only have
+// attachment.data (inline base64); those still render via the Blob-URL
+// fallback so nothing already sent breaks.
+function MessageAttachmentView({
+  attachment
+}) {
+  const isStorageBacked = !!(attachment && attachment.path);
+  const legacyDownloadUrl = useLegacyDataUrlDownload(!isStorageBacked && attachment ? attachment.data : null);
+  if (!attachment) return null;
+  const isImage = (attachment.type || "").startsWith("image/");
+  const srcUrl = isStorageBacked ? chatAttachmentUrl(attachment.path) : attachment.data;
+  const downloadUrl = isStorageBacked ? srcUrl : legacyDownloadUrl;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "message-attachment-wrap"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "message-attachment-label"
+  }, isImage ? /*#__PURE__*/React.createElement(IconImage, null) : /*#__PURE__*/React.createElement(IconPaperclip, null), "\xA0", isImage ? "Sent a photo" : "Sent an attachment"), isImage ? /*#__PURE__*/React.createElement("a", {
+    href: downloadUrl,
+    download: attachment.name,
+    className: "message-attachment-img-link",
+    title: `Download ${attachment.name}`
+  }, /*#__PURE__*/React.createElement("img", {
+    src: srcUrl,
+    alt: attachment.name,
+    className: "message-attachment-img"
+  })) : /*#__PURE__*/React.createElement("a", {
+    href: downloadUrl,
+    download: attachment.name,
+    className: "message-attachment-file",
+    title: `Download ${attachment.name}`
+  }, /*#__PURE__*/React.createElement(IconFile, null), /*#__PURE__*/React.createElement("span", {
+    className: "message-attachment-file-name"
+  }, attachment.name), /*#__PURE__*/React.createElement("span", {
+    className: "message-attachment-file-size"
+  }, formatFileSize(attachment.size)), /*#__PURE__*/React.createElement(IconDownload, null)));
+}
 function MessageCenter({
   messages,
   setMessages,
   isAdmin,
   reps,
-  repTargets,
   profiles,
   currentUser,
   lockedRep
 }) {
   const [open, setOpen] = useState(false);
-  // A small tab bar replaces the old "everything stacked in one long
-  // scrolling column" layout — each side of a conversation only renders the
-  // one section currently in view, which is what actually fixes the
-  // "jumbled up" feel. Admin defaults to the inbox (where the useful signal
-  // is); a rep defaults to their Admin thread (the most common action).
-  const [tab, setTab] = useState(() => isAdmin ? "team" : "admin");
-  const [selectedRep, setSelectedRep] = useState(null); // Admin: which rep's thread is open inside the Team Inbox tab
-  const [selectedAdmin, setSelectedAdmin] = useState(null); // Both roles: which Admin's private thread is open inside the Admins tab
+  // Just two tabs now: a unified conversation list (every Admin/Rep pairing
+  // is private, so there's no reason to split it into separate "Team Inbox"/
+  // "Admins"/"Sales Reps" sections any more) and read-only Announcements.
+  const [tab, setTab] = useState("messages");
+  const [selectedContact, setSelectedContact] = useState(null); // whose private thread is open
   const [announceBody, setAnnounceBody] = useState("");
+  const [announceAttachment, setAnnounceAttachment] = useState(null);
+  const [announceAttachError, setAnnounceAttachError] = useState("");
+  const [announceAttaching, setAnnounceAttaching] = useState(false);
   const [announceSending, setAnnounceSending] = useState(false);
-  const [teamReplyBody, setTeamReplyBody] = useState("");
-  const [teamReplySending, setTeamReplySending] = useState(false);
-  const [replyBody, setReplyBody] = useState("");
-  const [replying, setReplying] = useState(false);
-  const [peerRecipient, setPeerRecipient] = useState("");
-  const [peerBody, setPeerBody] = useState("");
-  const [peerSending, setPeerSending] = useState(false);
-  const [adminMsgBody, setAdminMsgBody] = useState("");
-  const [adminMsgSending, setAdminMsgSending] = useState(false);
+  const [threadBody, setThreadBody] = useState("");
+  const [threadAttachment, setThreadAttachment] = useState(null);
+  const [threadAttachError, setThreadAttachError] = useState("");
+  const [threadAttaching, setThreadAttaching] = useState(false);
+  const [threadSending, setThreadSending] = useState(false);
   const wrapRef = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -5381,95 +5859,41 @@ function MessageCenter({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  // Clear a stale draft when switching who it would be sent to, so text
-  // typed for one rep/admin never accidentally lands in a different thread.
+  // Clear a stale draft (and any staged attachment) when switching who it
+  // would be sent to, so text/files meant for one person never accidentally
+  // land in a different thread.
   useEffect(() => {
-    setTeamReplyBody("");
-  }, [selectedRep]);
-  useEffect(() => {
-    setAdminMsgBody("");
-  }, [selectedAdmin]);
+    setThreadBody("");
+    setThreadAttachment(null);
+    setThreadAttachError("");
+  }, [selectedContact]);
   const myRep = lockedRep || "";
   const myAdminName = currentUser && currentUser.name || "Admin";
-  // Whichever name identifies ME for the private Admins thread below — a
+  // Whichever name identifies ME across every private thread below — a
   // Sales Rep's own name, or an Admin's own name.
   const myName = isAdmin ? myAdminName : myRep;
   const ascending = useMemo(() => messages.slice().sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "")), [messages]);
   const descending = useMemo(() => messages.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")), [messages]);
 
-  // --- Private Admins thread — available to BOTH roles -----------------
-  // A Sales Rep can message one specific Admin directly instead of the
-  // shared Team Inbox queue below; one Admin can message another the same
-  // way. Either way it's a private, one-on-one thread, enforced server-side
-  // by the messages_select RLS policy (only the sender and that one named
-  // recipient can read it — not every Admin).
+  // Every person I can message privately: an Admin sees every Sales Rep plus
+  // every other Admin; a Sales Rep sees every other Sales Rep plus every
+  // Admin. One combined, always-available contact list either way — nobody
+  // has to have messaged first to show up in it.
   const otherAdmins = useMemo(() => computeOtherAdmins(myName, profiles), [myName, profiles]);
-  // An Admin can't pick a Sales Rep to START a private thread here (Team
-  // Inbox already covers Admin -> Rep) — but if a Rep has already sent ME
-  // specifically a private DM (recipient = my own name, not the shared
-  // "Admin" bucket), that Rep needs to show up as a contact too, or their
-  // message would arrive with nowhere for me to see or reply to it.
-  const repsWhoDMedMe = useMemo(() => {
-    if (!isAdmin) return [];
-    const names = new Set(messages.filter(m => m.recipient === myName && isRepName(m.senderName, reps)).map(m => m.senderName));
-    return reps.filter(r => names.has(r.name));
-  }, [isAdmin, messages, myName, reps]);
-  const dmContacts = useMemo(() => [...otherAdmins, ...repsWhoDMedMe], [otherAdmins, repsWhoDMedMe]);
-  const adminConversations = useMemo(() => buildConversations(dmContacts, ascending, myName), [dmContacts, ascending, myName]);
-  const selectedAdminThread = useMemo(() => {
-    const c = selectedAdmin ? adminConversations.find(c => c.person.name === selectedAdmin) : null;
+  const teammates = useMemo(() => isAdmin ? reps : computeTeammates(myRep, reps), [isAdmin, reps, myRep]);
+  const dmContacts = useMemo(() => [...teammates, ...otherAdmins], [teammates, otherAdmins]);
+  const conversations = useMemo(() => buildConversations(dmContacts, ascending, myName), [dmContacts, ascending, myName]);
+  const selectedThread = useMemo(() => {
+    const c = selectedContact ? conversations.find(c => c.person.name === selectedContact) : null;
     return c ? c.thread : [];
-  }, [adminConversations, selectedAdmin]);
-  const adminDMUnreadTotal = useMemo(() => adminConversations.reduce((s, c) => s + c.unread, 0), [adminConversations]);
+  }, [conversations, selectedContact]);
+  const dmUnreadTotal = useMemo(() => conversations.reduce((s, c) => s + c.unread, 0), [conversations]);
 
-  // --- Sales Rep side -------------------------------------------------
-  // Team-wide announcements (read-only), a shared thread with the whole
-  // Admin team, and a private thread with any other registered Sales Rep —
-  // one per tab (plus the private Admins thread above).
+  // Team-wide announcements — Admin-only to send, visible to everyone
+  // (including other Admins), read-only for Sales Reps.
   const announcements = useMemo(() => descending.filter(m => m.recipient === "All"), [descending]);
-  const adminThread = useMemo(() => ascending.filter(m => m.recipient === myRep && !isRepName(m.senderName, reps) || m.senderName === myRep && m.recipient === "Admin"), [ascending, myRep, reps]);
-  const teammates = useMemo(() => computeTeammates(myRep, reps, repTargets), [myRep, reps, repTargets]);
-  useEffect(() => {
-    if (!peerRecipient && teammates.length) setPeerRecipient(teammates[0].name);
-  }, [teammates, peerRecipient]);
-  const peerThread = useMemo(() => peerRecipient ? ascending.filter(m => m.senderName === myRep && m.recipient === peerRecipient || m.senderName === peerRecipient && m.recipient === myRep) : [], [ascending, myRep, peerRecipient]);
-  const peerUnreadTotal = useMemo(() => messages.filter(m => m.recipient === myRep && isRepName(m.senderName, reps) && !(m.readBy || []).includes(myRep)).length, [messages, myRep, reps]);
-  const announcementsUnread = useMemo(() => announcements.filter(m => !(m.readBy || []).includes(myRep)).length, [announcements, myRep]);
-  const adminThreadUnread = useMemo(() => adminThread.filter(m => m.recipient === myRep && !(m.readBy || []).includes(myRep)).length, [adminThread, myRep]);
-  const repUnreadCount = announcementsUnread + adminThreadUnread + peerUnreadTotal + adminDMUnreadTotal;
-
-  // --- Admin side -------------------------------------------------
-  // Team Inbox is a two-level view like any other inbox: a conversation list
-  // (one row per rep, newest message first, unread badge) until a specific
-  // rep is selected, then that rep's thread + reply box. This is what lets
-  // Admin see AT A GLANCE which rep sent what, without any guessing. Every
-  // Admin sees the SAME shared thread per rep — any Admin's own messages to
-  // that rep, plus that rep's replies — since it's a shared team queue, not
-  // a private DM (matched by "sender is any known Admin", not just me, which
-  // is what actually makes it shared across more than one Admin account).
-  const repReplies = useMemo(() => descending.filter(m => m.recipient === "Admin"), [descending]);
-  const adminUnreadCount = isAdmin ? repReplies.filter(m => !(m.readBy || []).includes(myAdminName)).length : 0;
-  const repConversations = useMemo(() => {
-    if (!isAdmin) return [];
-    return reps.map(r => {
-      const thread = ascending.filter(m => m.recipient === r.name && isAdminName(m.senderName, profiles) || m.senderName === r.name && m.recipient === "Admin");
-      const last = thread.length ? thread[thread.length - 1] : null;
-      const unread = thread.filter(m => m.senderName === r.name && !(m.readBy || []).includes(myAdminName)).length;
-      return {
-        rep: r,
-        thread,
-        last,
-        unread
-      };
-    }).sort((a, b) => {
-      if (a.last && b.last) return (b.last.createdAt || "").localeCompare(a.last.createdAt || "");
-      if (a.last) return -1;
-      if (b.last) return 1;
-      return a.rep.name.localeCompare(b.rep.name);
-    });
-  }, [isAdmin, reps, ascending, myAdminName, profiles]);
-  const selectedRepThread = useMemo(() => isAdmin && selectedRep ? ascending.filter(m => m.recipient === selectedRep && isAdminName(m.senderName, profiles) || m.senderName === selectedRep && m.recipient === "Admin") : [], [isAdmin, ascending, selectedRep, profiles]);
-  const unreadCount = isAdmin ? adminUnreadCount + adminDMUnreadTotal : repUnreadCount;
+  const announcementsUnread = useMemo(() => announcements.filter(m => !(m.readBy || []).includes(myName)).length, [announcements, myName]);
+  const unreadCount = dmUnreadTotal + announcementsUnread;
   function markRead(toMark, readerName) {
     if (!toMark.length) return;
     const toMarkIds = new Set(toMark.map(m => m.id));
@@ -5489,25 +5913,11 @@ function MessageCenter({
       });
     });
   }
-
-  // Admin selecting a rep's conversation row opens their thread. Marking
-  // that rep's replies read happens in the effect below (keyed on
-  // selectedRep) instead of here, so it also re-fires if that rep sends a
-  // follow-up message while their thread is already open.
-  function openRepConversation(repName) {
-    setSelectedRep(repName);
+  function openConversation(personName) {
+    setSelectedContact(personName);
   }
   function backToConversations() {
-    setSelectedRep(null);
-  }
-  function selectPeerThread(peerName) {
-    setPeerRecipient(peerName);
-  }
-  function openAdminConversation(adminName) {
-    setSelectedAdmin(adminName);
-  }
-  function backToAdminConversations() {
-    setSelectedAdmin(null);
+    setSelectedContact(null);
   }
   function toggleOpen() {
     setOpen(o => !o);
@@ -5516,40 +5926,33 @@ function MessageCenter({
   // Whichever tab (and whichever open conversation) is actually on screen
   // gets marked read — nothing is marked read just because the bell was
   // opened, so unread indicators stay meaningful until something is
-  // genuinely viewed. The private Admins thread is checked first since it's
-  // reachable from both roles, before the role-specific tabs below it.
+  // genuinely viewed.
   useEffect(() => {
     if (!open) return;
-    if (tab === "admins" && selectedAdmin) {
-      const convo = adminConversations.find(c => c.person.name === selectedAdmin);
+    if (tab === "messages" && selectedContact) {
+      const convo = conversations.find(c => c.person.name === selectedContact);
       if (convo) {
-        const toMark = convo.thread.filter(m => m.senderName === selectedAdmin && !(m.readBy || []).includes(myName));
+        const toMark = convo.thread.filter(m => m.senderName === selectedContact && !(m.readBy || []).includes(myName));
         markRead(toMark, myName);
       }
-    }
-    if (isAdmin) {
-      if (tab === "team" && selectedRep) {
-        const toMark = repReplies.filter(m => m.senderName === selectedRep && !(m.readBy || []).includes(myAdminName));
-        markRead(toMark, myAdminName);
-      }
-      return;
-    }
-    if (!myRep) return;
-    if (tab === "announcements") {
-      const toMark = announcements.filter(m => !(m.readBy || []).includes(myRep));
-      markRead(toMark, myRep);
-    } else if (tab === "admin") {
-      const toMark = adminThread.filter(m => m.recipient === myRep && !(m.readBy || []).includes(myRep));
-      markRead(toMark, myRep);
-    } else if (tab === "team" && peerRecipient) {
-      const toMark = messages.filter(m => m.recipient === myRep && m.senderName === peerRecipient && !(m.readBy || []).includes(myRep));
-      markRead(toMark, myRep);
+    } else if (tab === "announcements") {
+      const toMark = announcements.filter(m => !(m.readBy || []).includes(myName));
+      markRead(toMark, myName);
     }
     // eslint-disable-next-line
-  }, [open, tab, isAdmin, myRep, myName, selectedRep, selectedAdmin, peerRecipient, messages, adminConversations]);
+  }, [open, tab, selectedContact, myName, conversations, announcements]);
   async function sendAnnouncement() {
     const body = announceBody.trim();
-    if (!body) return;
+    // Guarding on announceAttaching/announceSending here (not just on the
+    // Send button's `disabled`) matters because the Cmd/Ctrl+Enter keyboard
+    // shortcut below calls this function directly, bypassing a disabled
+    // button entirely. Without this check, sending while a photo/file is
+    // still mid-upload would fire off the message with attachment=null
+    // (the upload hasn't resolved into state yet) even though the file
+    // itself finishes uploading to Storage moments later -- an orphaned
+    // file with no message ever pointing at it, and a message that looks
+    // like it should have an attachment but doesn't.
+    if (!body && !announceAttachment || announceAttaching || announceSending) return;
     setAnnounceSending(true);
     const newMsg = {
       id: uuidv4(),
@@ -5557,10 +5960,13 @@ function MessageCenter({
       senderName: myAdminName,
       recipient: "All",
       body,
-      readBy: []
+      readBy: [],
+      attachment: announceAttachment
     };
     setMessages(ms => [newMsg, ...ms]);
     setAnnounceBody("");
+    setAnnounceAttachment(null);
+    setAnnounceAttachError("");
     const {
       error
     } = await sbWriteOrQueue({
@@ -5575,130 +5981,34 @@ function MessageCenter({
     if (error) {
       window.alert("Could not send announcement: " + error.message);
       setMessages(ms => ms.filter(m => m.id !== newMsg.id));
-    }
+    } else playMessageChime();
   }
 
-  // Admin messaging a specific rep directly, from inside that rep's open
-  // conversation in the Team Inbox tab.
-  async function sendTeamMessage() {
-    const body = teamReplyBody.trim();
-    if (!body || !selectedRep) return;
-    setTeamReplySending(true);
-    const newMsg = {
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-      senderName: myAdminName,
-      recipient: selectedRep,
-      body,
-      readBy: []
-    };
-    setMessages(ms => [newMsg, ...ms]);
-    setTeamReplyBody("");
-    const {
-      error
-    } = await sbWriteOrQueue({
-      table: "messages",
-      action: "insert",
-      row: {
-        id: newMsg.id,
-        ...messageToRow(newMsg)
-      }
-    });
-    setTeamReplySending(false);
-    if (error) {
-      window.alert("Could not send message: " + error.message);
-      setMessages(ms => ms.filter(m => m.id !== newMsg.id));
-    }
-  }
-
-  // A Sales Rep's reply to the shared Team Inbox always goes to "Admin" —
-  // that single literal, plus this rep's own name as sender, is what lets
-  // any Admin find it and what keeps it inside this rep's own shared thread
-  // above. For a PRIVATE message to one specific Admin, see sendAdminMessage
-  // below instead.
-  async function sendReply() {
-    const body = replyBody.trim();
-    if (!body || !myRep) return;
-    setReplying(true);
-    const newMsg = {
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-      senderName: myRep,
-      recipient: "Admin",
-      body,
-      readBy: []
-    };
-    setMessages(ms => [newMsg, ...ms]);
-    setReplyBody("");
-    const {
-      error
-    } = await sbWriteOrQueue({
-      table: "messages",
-      action: "insert",
-      row: {
-        id: newMsg.id,
-        ...messageToRow(newMsg)
-      }
-    });
-    setReplying(false);
-    if (error) {
-      window.alert("Could not send your reply: " + error.message);
-      setMessages(ms => ms.filter(m => m.id !== newMsg.id));
-    }
-  }
-
-  // A rep-to-rep message — sent to any other registered Sales Rep (the
-  // dropdown above lists every one of them).
-  async function sendPeerMessage() {
-    const body = peerBody.trim();
-    if (!body || !myRep || !peerRecipient) return;
-    setPeerSending(true);
-    const newMsg = {
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-      senderName: myRep,
-      recipient: peerRecipient,
-      body,
-      readBy: []
-    };
-    setMessages(ms => [newMsg, ...ms]);
-    setPeerBody("");
-    const {
-      error
-    } = await sbWriteOrQueue({
-      table: "messages",
-      action: "insert",
-      row: {
-        id: newMsg.id,
-        ...messageToRow(newMsg)
-      }
-    });
-    setPeerSending(false);
-    if (error) {
-      window.alert("Could not send your message: " + error.message);
-      setMessages(ms => ms.filter(m => m.id !== newMsg.id));
-    }
-  }
-
-  // A private, one-on-one message to one specific Admin — a Sales Rep
-  // reaching that Admin directly instead of the shared Team Inbox queue, or
-  // one Admin reaching another. Always signed with my own real name, which
-  // is exactly what the messages_select policy matches against to keep this
-  // pair-only rather than visible to every Admin.
-  async function sendAdminMessage() {
-    const body = adminMsgBody.trim();
-    if (!body || !selectedAdmin || !myName) return;
-    setAdminMsgSending(true);
+  // The one send function every private thread uses, whoever `selectedContact`
+  // is — an Admin messaging a Rep, a Rep messaging an Admin, two Admins, or
+  // two Reps. Always signed with my own real name, which is exactly what the
+  // messages_select policy matches against to keep this pair-only.
+  async function sendDirectMessage() {
+    const body = threadBody.trim();
+    // Same reasoning as sendAnnouncement above: threadAttaching guards
+    // against the Cmd/Ctrl+Enter shortcut firing while a file/photo upload
+    // is still in flight, which would otherwise send the message before
+    // the attachment ever attaches to it.
+    if (!body && !threadAttachment || !selectedContact || !myName || threadAttaching || threadSending) return;
+    setThreadSending(true);
     const newMsg = {
       id: uuidv4(),
       createdAt: new Date().toISOString(),
       senderName: myName,
-      recipient: selectedAdmin,
+      recipient: selectedContact,
       body,
-      readBy: []
+      readBy: [],
+      attachment: threadAttachment
     };
     setMessages(ms => [newMsg, ...ms]);
-    setAdminMsgBody("");
+    setThreadBody("");
+    setThreadAttachment(null);
+    setThreadAttachError("");
     const {
       error
     } = await sbWriteOrQueue({
@@ -5709,17 +6019,17 @@ function MessageCenter({
         ...messageToRow(newMsg)
       }
     });
-    setAdminMsgSending(false);
+    setThreadSending(false);
     if (error) {
       window.alert("Could not send your message: " + error.message);
       setMessages(ms => ms.filter(m => m.id !== newMsg.id));
-    }
+    } else playMessageChime();
   }
 
   // Admin-only, server-enforced too (the messages_admin_delete RLS policy
-  // rejects this for anyone whose role isn't Admin) — a Sales Rep never
-  // gets this button rendered in the first place, but the database would
-  // refuse the delete either way even if someone tried to force it.
+  // rejects this for anyone whose role isn't Admin, and is itself scoped to
+  // only the threads that Admin is actually part of, or a broadcast) — a
+  // Sales Rep never gets this button rendered in the first place.
   async function deleteMessage(m) {
     if (!window.confirm("Delete this message? This can't be undone.")) return;
     setMessages(ms => ms.filter(x => x.id !== m.id));
@@ -5734,6 +6044,20 @@ function MessageCenter({
     if (error) {
       window.alert("Could not delete message: " + error.message);
       setMessages(ms => [...ms, m]);
+      return;
+    }
+    // Deleting the message row itself never touches Storage -- clean up the
+    // actual file too, once the row delete is confirmed, so a deleted
+    // message doesn't leave its attachment sitting in the bucket forever.
+    // Best-effort: a Storage hiccup here never un-deletes the message or
+    // blocks the person clicking delete, since a leftover file with nothing
+    // pointing at it is harmless (see the SQL migration for an optional
+    // server-side backstop that catches this even for messages deleted
+    // outside the app).
+    if (m.attachment && m.attachment.path) {
+      try {
+        await sb.storage.from(CHAT_ATTACHMENTS_BUCKET).remove([m.attachment.path]);
+      } catch (e) {/* non-fatal */}
     }
   }
   function DeleteMessageBtn({
@@ -5747,7 +6071,7 @@ function MessageCenter({
     }, /*#__PURE__*/React.createElement(IconTrash, null));
   }
   function renderAnnouncementItem(m) {
-    const unread = !isAdmin && !(m.readBy || []).includes(myRep);
+    const unread = !(m.readBy || []).includes(myName);
     return /*#__PURE__*/React.createElement("div", {
       key: m.id,
       className: "message-item" + (unread ? " unread" : "")
@@ -5755,23 +6079,23 @@ function MessageCenter({
       className: "message-item-head"
     }, /*#__PURE__*/React.createElement("span", {
       className: "message-item-to"
-    }, isAdmin ? "To: All Reps" : `From: ${m.senderName}`), /*#__PURE__*/React.createElement("span", {
+    }, m.senderName === myName ? "You" : `From: ${m.senderName}`), /*#__PURE__*/React.createElement("span", {
       className: "message-item-time-group"
     }, /*#__PURE__*/React.createElement("span", {
       className: "message-item-time"
     }, formatDateTime(m.createdAt)), /*#__PURE__*/React.createElement(DeleteMessageBtn, {
       m: m
-    }))), /*#__PURE__*/React.createElement("div", {
+    }))), m.body && /*#__PURE__*/React.createElement("div", {
       className: "message-item-body"
-    }, m.body), isAdmin && reps.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, m.body), /*#__PURE__*/React.createElement(MessageAttachmentView, {
+      attachment: m.attachment
+    }), isAdmin && reps.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "message-item-reads"
-    }, "Read by ", reps.filter(r => (m.readBy || []).includes(r.name)).length, " of ", reps.length));
+    }, "Read by ", reps.filter(r => (m.readBy || []).includes(r.name)).length, " of ", reps.length, " reps"));
   }
 
-  // `meName` is whichever side is "me" in this bubble view (the Admin's own
-  // name when Admin is viewing a rep thread, or this rep's own name when a
-  // rep is viewing their Admin or peer thread) — used only to mirror "my"
-  // messages to the right instead of hardcoding which side that is.
+  // `meName` is whichever side is "me" in this bubble view — used only to
+  // mirror "my" messages to the right instead of hardcoding which side that is.
   function renderThreadBubble(m, meName) {
     const fromMe = m.senderName === meName;
     return /*#__PURE__*/React.createElement("div", {
@@ -5787,9 +6111,11 @@ function MessageCenter({
       className: "message-item-time"
     }, formatDateTime(m.createdAt)), /*#__PURE__*/React.createElement(DeleteMessageBtn, {
       m: m
-    }))), /*#__PURE__*/React.createElement("div", {
+    }))), m.body && /*#__PURE__*/React.createElement("div", {
       className: "message-item-body"
-    }, m.body));
+    }, m.body), /*#__PURE__*/React.createElement(MessageAttachmentView, {
+      attachment: m.attachment
+    }));
   }
   function TabBadge({
     count
@@ -5797,76 +6123,6 @@ function MessageCenter({
     return count > 0 ? /*#__PURE__*/React.createElement("span", {
       className: "message-tab-badge"
     }, count > 9 ? "9+" : count) : null;
-  }
-
-  // The private Admins thread — a conversation list of every OTHER Admin,
-  // then that one person's thread + reply box once picked. Identical for
-  // both roles (a Sales Rep reaching one specific Admin instead of the
-  // shared Team Inbox queue, or one Admin reaching another) since it's all
-  // driven by `myName`/`otherAdmins`/`adminConversations` above.
-  function renderAdminsTab() {
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      className: "chart-sub",
-      style: {
-        margin: "6px 2px 10px"
-      }
-    }, "Private — only you and the Admin you pick can see this thread."), selectedAdmin === null ? /*#__PURE__*/React.createElement("div", {
-      className: "message-conv-list"
-    }, dmContacts.length === 0 && /*#__PURE__*/React.createElement("div", {
-      className: "empty-feed"
-    }, isAdmin ? "No other Admins registered yet, and no Sales Rep has messaged you privately." : "No other Admins registered yet."), adminConversations.map(ac => /*#__PURE__*/React.createElement("button", {
-      key: ac.person.id,
-      className: "message-conv-row" + (ac.unread > 0 ? " unread" : ""),
-      onClick: () => openAdminConversation(ac.person.name)
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-avatar",
-      style: {
-        background: "var(--accent-blue)"
-      }
-    }, initials(ac.person.name)), /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-info"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-name"
-    }, ac.person.name, isAdmin && isRepName(ac.person.name, reps) && /*#__PURE__*/React.createElement("span", {
-      className: "tag-muted"
-    }, "\xA0(Sales Rep)"), ac.unread > 0 && /*#__PURE__*/React.createElement("span", {
-      className: "message-new-dot",
-      title: `${ac.unread} unread`
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-preview"
-    }, ac.last ? ac.last.body : "No messages yet — say hello")), ac.last && /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-time"
-    }, formatDateTime(ac.last.createdAt))))) : /*#__PURE__*/React.createElement("div", {
-      className: "message-conv-open"
-    }, /*#__PURE__*/React.createElement("button", {
-      className: "message-conv-back",
-      onClick: backToAdminConversations
-    }, "‹\xA0 All conversations"), /*#__PURE__*/React.createElement("div", {
-      className: "message-conv-open-head"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "message-conv-avatar",
-      style: {
-        background: "var(--accent-blue)"
-      }
-    }, initials(selectedAdmin)), selectedAdmin), /*#__PURE__*/React.createElement("div", {
-      className: "message-list message-thread"
-    }, selectedAdminThread.length === 0 && /*#__PURE__*/React.createElement("div", {
-      className: "empty-feed"
-    }, "No messages with ", selectedAdmin, " yet — say hello."), selectedAdminThread.map(m => renderThreadBubble(m, myName))), /*#__PURE__*/React.createElement("div", {
-      className: "message-reply-box"
-    }, /*#__PURE__*/React.createElement("textarea", {
-      className: "textarea message-compose-input",
-      placeholder: `Message ${selectedAdmin} privately…`,
-      value: adminMsgBody,
-      onChange: e => setAdminMsgBody(e.target.value),
-      onKeyDown: e => {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendAdminMessage();
-      }
-    }), /*#__PURE__*/React.createElement("button", {
-      className: "btn message-send-btn",
-      disabled: !adminMsgBody.trim() || adminMsgSending,
-      onClick: sendAdminMessage
-    }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", adminMsgSending ? "Sending…" : "Send"))));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "message-center",
@@ -5881,46 +6137,52 @@ function MessageCenter({
     className: "message-panel"
   }, /*#__PURE__*/React.createElement("div", {
     className: "message-panel-head"
-  }, isAdmin ? "Team Messages" : "Messages"), isAdmin && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "Messages"), /*#__PURE__*/React.createElement("div", {
     className: "message-tabs"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "team" ? " active" : ""),
-    onClick: () => setTab("team")
-  }, "Team Inbox", /*#__PURE__*/React.createElement(TabBadge, {
-    count: adminUnreadCount
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "admins" ? " active" : ""),
-    onClick: () => setTab("admins")
-  }, "Admins", /*#__PURE__*/React.createElement(TabBadge, {
-    count: adminDMUnreadTotal
+    className: "message-tab" + (tab === "messages" ? " active" : ""),
+    onClick: () => setTab("messages")
+  }, "Messages", /*#__PURE__*/React.createElement(TabBadge, {
+    count: dmUnreadTotal
   })), /*#__PURE__*/React.createElement("button", {
     className: "message-tab" + (tab === "announcements" ? " active" : ""),
     onClick: () => setTab("announcements")
-  }, "Announcements")), tab === "team" && (selectedRep === null ? /*#__PURE__*/React.createElement("div", {
+  }, "Announcements", /*#__PURE__*/React.createElement(TabBadge, {
+    count: announcementsUnread
+  }))), tab === "messages" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub",
+    style: {
+      margin: "-4px 2px 10px"
+    }
+  }, "Private — only you and the person you pick can ever see a thread."), selectedContact === null ? /*#__PURE__*/React.createElement("div", {
     className: "message-conv-list"
-  }, repConversations.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, dmContacts.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-feed"
-  }, "No Sales Reps registered yet."), repConversations.map(rc => /*#__PURE__*/React.createElement("button", {
-    key: rc.rep.id,
-    className: "message-conv-row" + (rc.unread > 0 ? " unread" : ""),
-    onClick: () => openRepConversation(rc.rep.name)
+  }, "No one else is registered yet."), conversations.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c.person.id,
+    className: "message-conv-row" + (c.unread > 0 ? " unread" : ""),
+    onClick: () => openConversation(c.person.name)
   }, /*#__PURE__*/React.createElement("span", {
     className: "message-conv-avatar",
     style: {
-      background: rc.rep.color || "var(--accent-blue)"
+      background: c.person.color || "var(--accent-blue)"
     }
-  }, initials(rc.rep.name)), /*#__PURE__*/React.createElement("span", {
+  }, initials(c.person.name)), /*#__PURE__*/React.createElement("span", {
     className: "message-conv-info"
   }, /*#__PURE__*/React.createElement("span", {
     className: "message-conv-name"
-  }, rc.rep.name, rc.unread > 0 && /*#__PURE__*/React.createElement("span", {
+  }, c.person.name, isRepName(c.person.name, reps) ? /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "\xA0(Sales Rep)") : /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "\xA0(Admin)"), c.unread > 0 && /*#__PURE__*/React.createElement("span", {
     className: "message-new-dot",
-    title: `${rc.unread} unread`
+    title: `${c.unread} unread`
   })), /*#__PURE__*/React.createElement("span", {
     className: "message-conv-preview"
-  }, rc.last ? rc.last.body : "No messages yet — say hello")), rc.last && /*#__PURE__*/React.createElement("span", {
+  }, c.last ? c.last.body || (c.last.attachment ? `📎 ${c.last.attachment.name}` : "") : "No messages yet — say hello")), c.last && /*#__PURE__*/React.createElement("span", {
     className: "message-conv-time"
-  }, formatDateTime(rc.last.createdAt))))) : /*#__PURE__*/React.createElement("div", {
+  }, formatDateTime(c.last.createdAt))))) : /*#__PURE__*/React.createElement("div", {
     className: "message-conv-open"
   }, /*#__PURE__*/React.createElement("button", {
     className: "message-conv-back",
@@ -5930,27 +6192,40 @@ function MessageCenter({
   }, /*#__PURE__*/React.createElement("span", {
     className: "message-conv-avatar",
     style: {
-      background: (reps.find(r => r.name === selectedRep) || {}).color || "var(--accent-blue)"
+      background: "var(--accent-blue)"
     }
-  }, initials(selectedRep)), selectedRep), /*#__PURE__*/React.createElement("div", {
+  }, initials(selectedContact)), selectedContact), /*#__PURE__*/React.createElement("div", {
     className: "message-list message-thread"
-  }, selectedRepThread.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, selectedThread.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-feed"
-  }, "No messages with ", selectedRep, " yet — say hello."), selectedRepThread.map(m => renderThreadBubble(m, myAdminName))), /*#__PURE__*/React.createElement("div", {
+  }, "No messages with ", selectedContact, " yet — say hello."), selectedThread.map(m => renderThreadBubble(m, myName))), /*#__PURE__*/React.createElement("div", {
     className: "message-reply-box"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea message-compose-input",
-    placeholder: `Message ${selectedRep}…`,
-    value: teamReplyBody,
-    onChange: e => setTeamReplyBody(e.target.value),
+    placeholder: `Message ${selectedContact}…`,
+    value: threadBody,
+    onChange: e => setThreadBody(e.target.value),
     onKeyDown: e => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendTeamMessage();
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendDirectMessage();
     }
+  }), /*#__PURE__*/React.createElement(MessageAttachControl, {
+    attachment: threadAttachment,
+    onAttach: (att, err) => {
+      setThreadAttachment(att);
+      setThreadAttachError(err || "");
+    },
+    onRemove: () => {
+      setThreadAttachment(null);
+      setThreadAttachError("");
+    },
+    uploadError: threadAttachError,
+    uploading: threadAttaching,
+    onUploadingChange: setThreadAttaching
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn message-send-btn",
-    disabled: !teamReplyBody.trim() || teamReplySending,
-    onClick: sendTeamMessage
-  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", teamReplySending ? "Sending…" : "Send")))), tab === "admins" && renderAdminsTab(), tab === "announcements" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    disabled: !threadBody.trim() && !threadAttachment || threadSending || threadAttaching,
+    onClick: sendDirectMessage
+  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", threadSending ? "Sending…" : "Send")))), tab === "announcements" && /*#__PURE__*/React.createElement(React.Fragment, null, isAdmin && /*#__PURE__*/React.createElement("div", {
     className: "message-compose"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea message-compose-input",
@@ -5960,94 +6235,28 @@ function MessageCenter({
     onKeyDown: e => {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendAnnouncement();
     }
+  }), /*#__PURE__*/React.createElement(MessageAttachControl, {
+    attachment: announceAttachment,
+    onAttach: (att, err) => {
+      setAnnounceAttachment(att);
+      setAnnounceAttachError(err || "");
+    },
+    onRemove: () => {
+      setAnnounceAttachment(null);
+      setAnnounceAttachError("");
+    },
+    uploadError: announceAttachError,
+    uploading: announceAttaching,
+    onUploadingChange: setAnnounceAttaching
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn message-send-btn",
-    disabled: !announceBody.trim() || announceSending,
+    disabled: !announceBody.trim() && !announceAttachment || announceSending || announceAttaching,
     onClick: sendAnnouncement
-  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", announceSending ? "Sending…" : "Send to All Reps")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", announceSending ? "Sending…" : "Send to Everyone")), /*#__PURE__*/React.createElement("div", {
     className: "message-list"
   }, announcements.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-feed"
-  }, "No announcements sent yet."), announcements.map(renderAnnouncementItem)))), !isAdmin && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "message-tabs"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "admin" ? " active" : ""),
-    onClick: () => setTab("admin")
-  }, "Admin", /*#__PURE__*/React.createElement(TabBadge, {
-    count: adminThreadUnread
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "admins" ? " active" : ""),
-    onClick: () => setTab("admins")
-  }, "Admins", /*#__PURE__*/React.createElement(TabBadge, {
-    count: adminDMUnreadTotal
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "team" ? " active" : ""),
-    onClick: () => setTab("team")
-  }, "Sales Reps", /*#__PURE__*/React.createElement(TabBadge, {
-    count: peerUnreadTotal
-  })), /*#__PURE__*/React.createElement("button", {
-    className: "message-tab" + (tab === "announcements" ? " active" : ""),
-    onClick: () => setTab("announcements")
-  }, "Announcements", /*#__PURE__*/React.createElement(TabBadge, {
-    count: announcementsUnread
-  }))), tab === "admins" && renderAdminsTab(), tab === "admin" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "chart-sub",
-    style: {
-      margin: "6px 2px 10px"
-    }
-  }, "Shared — every Admin can see this thread and reply. Need to reach just one Admin privately? Use the Admins tab instead."), /*#__PURE__*/React.createElement("div", {
-    className: "message-list message-thread"
-  }, adminThread.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "empty-feed"
-  }, "No messages yet — say hello, or wait for your Admin to reach out."), adminThread.map(m => renderThreadBubble(m, myRep))), /*#__PURE__*/React.createElement("div", {
-    className: "message-reply-box"
-  }, /*#__PURE__*/React.createElement("textarea", {
-    className: "textarea message-compose-input",
-    placeholder: "Type a reply to your Admin…",
-    value: replyBody,
-    onChange: e => setReplyBody(e.target.value),
-    onKeyDown: e => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply();
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn message-send-btn",
-    disabled: !replyBody.trim() || replying,
-    onClick: sendReply
-  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", replying ? "Sending…" : "Reply"))), tab === "team" && (teammates.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "empty-feed"
-  }, "No other Sales Reps registered yet.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("select", {
-    className: "select message-peer-select",
-    value: peerRecipient,
-    onChange: e => selectPeerThread(e.target.value)
-  }, teammates.map(t => /*#__PURE__*/React.createElement("option", {
-    key: t.id,
-    value: t.name
-  }, t.name))), /*#__PURE__*/React.createElement("div", {
-    className: "message-list message-thread",
-    style: {
-      marginTop: 10
-    }
-  }, peerThread.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "empty-feed"
-  }, "No messages with ", peerRecipient, " yet."), peerThread.map(m => renderThreadBubble(m, myRep))), /*#__PURE__*/React.createElement("div", {
-    className: "message-reply-box"
-  }, /*#__PURE__*/React.createElement("textarea", {
-    className: "textarea message-compose-input",
-    placeholder: `Message ${peerRecipient}…`,
-    value: peerBody,
-    onChange: e => setPeerBody(e.target.value),
-    onKeyDown: e => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendPeerMessage();
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn message-send-btn",
-    disabled: !peerBody.trim() || peerSending,
-    onClick: sendPeerMessage
-  }, /*#__PURE__*/React.createElement(IconSend, null), "\xA0 ", peerSending ? "Sending…" : "Send")))), tab === "announcements" && /*#__PURE__*/React.createElement("div", {
-    className: "message-list"
-  }, announcements.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "empty-feed"
-  }, "No announcements yet."), announcements.map(renderAnnouncementItem)))));
+  }, "No announcements ", isAdmin ? "sent" : "", " yet."), announcements.map(renderAnnouncementItem)))));
 }
 function ProfileFab({
   user,
@@ -6901,6 +7110,54 @@ function RepBadge({
     }
   }), name);
 }
+
+// Same pattern as RepBadge, for a lead/allocation's Business Unit — every BU
+// gets its own color the moment it's created, so this is the one shared
+// visual identity used everywhere a Business Unit shows up (the Lead
+// Pipeline table, the lead drawer, Rep Targets allocations, Productivity
+// Log…) instead of every screen inventing its own plain-text rendering.
+function BUBadge({
+  businessUnits,
+  name
+}) {
+  if (!name) return /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "Unassigned");
+  const hex = businessUnitColor(businessUnits, name);
+  return /*#__PURE__*/React.createElement("span", {
+    className: "bu-badge",
+    style: {
+      color: hex,
+      borderColor: hexToRgba(hex, 0.4),
+      background: hexToRgba(hex, 0.12)
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "bu-dot",
+    style: {
+      background: hex
+    }
+  }), name);
+}
+
+// A small colored dot placed beside a native <select> so a Business Unit
+// picker still shows that BU's color at a glance -- native <option> elements
+// can't reliably be colored cross-browser, so the dot mirrors whatever the
+// select's current value is instead. Purely a visual wrapper: it never
+// changes the <select> itself, so anything that finds the select directly
+// (by title, by position, etc.) keeps working exactly as before.
+function BUSelectSwatch({
+  businessUnits,
+  value
+}) {
+  const hex = value ? businessUnitColor(businessUnits, value) : "#8b8a9a";
+  return /*#__PURE__*/React.createElement("span", {
+    className: "bu-select-dot",
+    style: {
+      background: hex
+    },
+    title: value || "Unassigned"
+  });
+}
 function FollowUpCell({
   lead
 }) {
@@ -6979,6 +7236,7 @@ function AlertsBanner({
 function LeadsTable({
   leads,
   reps,
+  businessUnits,
   currency,
   rate,
   onOpenLead,
@@ -7016,7 +7274,7 @@ function LeadsTable({
     checked: allSelected,
     onChange: onToggleSelectAll,
     title: "Select all"
-  })), /*#__PURE__*/React.createElement("th", null, "Contact / Company"), /*#__PURE__*/React.createElement("th", null, "Deal Value"), /*#__PURE__*/React.createElement("th", null, "Stage"), /*#__PURE__*/React.createElement("th", null, "Win %"), /*#__PURE__*/React.createElement("th", null, "Priority"), /*#__PURE__*/React.createElement("th", null, "Assigned Rep"), mode === "active" && /*#__PURE__*/React.createElement("th", null, "Follow-Up"), mode === "archived" && /*#__PURE__*/React.createElement("th", null, "Archived"), mode === "bin" && /*#__PURE__*/React.createElement("th", null, "Auto-Deletes In"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, leads.map(l => /*#__PURE__*/React.createElement("tr", {
+  })), /*#__PURE__*/React.createElement("th", null, "Contact / Company"), /*#__PURE__*/React.createElement("th", null, "Deal Value"), /*#__PURE__*/React.createElement("th", null, "Stage"), /*#__PURE__*/React.createElement("th", null, "Win %"), /*#__PURE__*/React.createElement("th", null, "Priority"), /*#__PURE__*/React.createElement("th", null, "Assigned Rep"), /*#__PURE__*/React.createElement("th", null, "Business Unit"), mode === "active" && /*#__PURE__*/React.createElement("th", null, "Follow-Up"), mode === "archived" && /*#__PURE__*/React.createElement("th", null, "Archived"), mode === "bin" && /*#__PURE__*/React.createElement("th", null, "Auto-Deletes In"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, leads.map(l => /*#__PURE__*/React.createElement("tr", {
     key: l.id,
     className: "lead-row" + (mode === "bin" ? " lead-row-bin" : "") + (selectedIds.has(l.id) ? " lead-row-selected" : ""),
     onClick: () => mode !== "bin" && onOpenLead(l.id)
@@ -7051,6 +7309,9 @@ function LeadsTable({
   })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
     reps: reps,
     name: l.assignedRep
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUBadge, {
+    businessUnits: businessUnits,
+    name: l.businessUnit
   })), mode === "active" && /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(FollowUpCell, {
     lead: l
   })), mode === "archived" && /*#__PURE__*/React.createElement("td", {
@@ -7351,7 +7612,12 @@ function LeadDrawer({
     name: lead.assignedRep
   }) : /*#__PURE__*/React.createElement("span", {
     className: "tag-muted"
-  }, "Unassigned"))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("select", {
+  }, "Unassigned"))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: lead.businessUnit
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: lead.businessUnit || "",
     onChange: e => set("businessUnit", e.target.value)
@@ -7359,8 +7625,11 @@ function LeadDrawer({
     value: ""
   }, "Unassigned"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
-  }, b.name))))), /*#__PURE__*/React.createElement("div", {
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name)))))), /*#__PURE__*/React.createElement("div", {
     className: "field-group-title"
   }, "Important Dates"), /*#__PURE__*/React.createElement("div", {
     className: "drawer-grid"
@@ -7497,6 +7766,7 @@ function LeadPipeline({
   const [sourceFilter, setSourceFilter] = useState("All");
   const [buFilter, setBuFilter] = useState("All");
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
   // Tracks the id of a lead created via the "+ Add Lead" button, until it's
   // explicitly saved — that's the only signal the drawer's footer button
@@ -7607,6 +7877,13 @@ function LeadPipeline({
   useEffect(() => {
     setSelectedIds(new Set());
   }, [view]);
+  // Any change to what's being filtered/searched can shrink the result set
+  // out from under whatever page you were on (e.g. page 4 of a search that
+  // now only has 1 page) -- jump back to page 1 whenever the filters change,
+  // same as most paginated tables.
+  useEffect(() => {
+    setPage(1);
+  }, [view, search, stageFilter, priorityFilter, sourceFilter, buFilter, selectedRep]);
   function toggleSelect(id) {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -7614,12 +7891,28 @@ function LeadPipeline({
       return next;
     });
   }
-  function toggleSelectAll() {
+  // The header checkbox only ever toggles the leads on the CURRENT page --
+  // selecting every filtered lead across every page is the separate
+  // "Select all N leads" banner action below, not something a single
+  // checkbox click should do silently.
+  function toggleSelectPage() {
     setSelectedIds(prev => {
-      const allSelected = filtered.length > 0 && filtered.every(l => prev.has(l.id));
-      if (allSelected) return new Set();
-      return new Set(filtered.map(l => l.id));
+      const next = new Set(prev);
+      const allOnPageSelected = pageLeads.length > 0 && pageLeads.every(l => next.has(l.id));
+      if (allOnPageSelected) {
+        pageLeads.forEach(l => next.delete(l.id));
+      } else {
+        pageLeads.forEach(l => next.add(l.id));
+      }
+      return next;
     });
+  }
+  // Expands the selection from "this page" to every lead matching the
+  // current filters, regardless of which page it lives on -- this is what
+  // lets "select all" actually mean all leads in the system, with the count
+  // shown in the bulk action bar, instead of being capped at one page.
+  function selectAllFiltered() {
+    setSelectedIds(new Set(filtered.map(l => l.id)));
   }
   function clearSelection() {
     setSelectedIds(new Set());
@@ -7928,6 +8221,16 @@ function LeadPipeline({
   const activeLead = view !== "bin" ? activeLeads.concat(archivedLeads).find(l => l.id === activeLeadId) || null : null;
   const allFilteredSelected = filtered.length > 0 && filtered.every(l => selectedIds.has(l.id));
   const selectedCount = selectedIds.size;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LEADS_PAGE_SIZE));
+  // Clamp instead of resetting to 1 -- e.g. deleting the last lead on page 3
+  // of 3 should drop back to the new page 2, not yank you all the way to
+  // page 1 of an otherwise-untouched list.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pageStart = (page - 1) * LEADS_PAGE_SIZE;
+  const pageLeads = filtered.slice(pageStart, pageStart + LEADS_PAGE_SIZE);
+  const allPageSelected = pageLeads.length > 0 && pageLeads.every(l => selectedIds.has(l.id));
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8008,7 +8311,12 @@ function LeadPipeline({
   }, "All Sources"), LEAD_SOURCES.map(s => /*#__PURE__*/React.createElement("option", {
     key: s,
     value: s
-  }, s))), /*#__PURE__*/React.createElement("select", {
+  }, s))), /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, buFilter !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: buFilter === "Unassigned" ? "" : buFilter
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: buFilter,
     onChange: e => setBuFilter(e.target.value)
@@ -8016,10 +8324,21 @@ function LeadPipeline({
     value: "All"
   }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
+    value: b.name,
+    style: {
+      color: b.color
+    }
   }, b.name)), /*#__PURE__*/React.createElement("option", {
     value: "Unassigned"
-  }, "Unassigned"))), selectedCount > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "Unassigned")))), allPageSelected && filtered.length > pageLeads.length && !allFilteredSelected && /*#__PURE__*/React.createElement("div", {
+    className: "select-all-banner"
+  }, "All ", pageLeads.length, " leads on this page are selected.", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "select-all-banner-link",
+    onClick: selectAllFiltered
+  }, "Select all ", filtered.length, " leads")), allFilteredSelected && filtered.length > pageLeads.length && /*#__PURE__*/React.createElement("div", {
+    className: "select-all-banner"
+  }, "All ", filtered.length, " leads are selected."), selectedCount > 0 && /*#__PURE__*/React.createElement("div", {
     className: "bulk-action-bar"
   }, /*#__PURE__*/React.createElement("span", {
     className: "bulk-action-count"
@@ -8058,7 +8377,10 @@ function LeadPipeline({
     value: "__unassigned__"
   }, "Unassigned"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
+    value: b.name,
+    style: {
+      color: b.color
+    }
   }, b.name))), /*#__PURE__*/React.createElement("button", {
     className: "btn ghost",
     onClick: clearSelection
@@ -8068,8 +8390,9 @@ function LeadPipeline({
   }, view === "bin" ? /*#__PURE__*/React.createElement(IconTrashForever, null) : /*#__PURE__*/React.createElement(IconTrash, null), "\xA0 ", view === "bin" ? `Delete ${selectedCount} Permanently` : `Move ${selectedCount} to Recycle Bin`)), /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement(LeadsTable, {
-    leads: filtered,
+    leads: pageLeads,
     reps: reps,
+    businessUnits: businessUnits,
     currency: currency,
     rate: rate,
     mode: view,
@@ -8083,9 +8406,25 @@ function LeadPipeline({
     onDuplicate: duplicateLead,
     selectedIds: selectedIds,
     onToggleSelect: toggleSelect,
-    onToggleSelectAll: toggleSelectAll,
-    allSelected: allFilteredSelected
-  })), activeLead && /*#__PURE__*/React.createElement(LeadDrawer, {
+    onToggleSelectAll: toggleSelectPage,
+    allSelected: allPageSelected
+  }), totalPages > 1 && /*#__PURE__*/React.createElement("div", {
+    className: "pipeline-pagination"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn ghost",
+    disabled: page <= 1,
+    onClick: () => setPage(p => Math.max(1, p - 1))
+  }, /*#__PURE__*/React.createElement(IconChevron, null), "\xA0Prev"), /*#__PURE__*/React.createElement("span", {
+    className: "pipeline-pagination-info"
+  }, "Page ", page, " of ", totalPages, " · ", filtered.length, " lead", filtered.length === 1 ? "" : "s"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn ghost",
+    disabled: page >= totalPages,
+    onClick: () => setPage(p => Math.min(totalPages, p + 1))
+  }, "Next\xA0", /*#__PURE__*/React.createElement(IconChevron, {
+    dir: "right"
+  })))), activeLead && /*#__PURE__*/React.createElement(LeadDrawer, {
     lead: activeLead,
     reps: reps,
     businessUnits: businessUnits,
@@ -9410,11 +9749,18 @@ function BusinessUnits({
     const allocPct = bu.annualTarget > 0 ? Math.round(allocated / bu.annualTarget * 100) : allocated > 0 ? 100 : 0;
     return /*#__PURE__*/React.createElement("tr", {
       key: bu.id
-    }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+    }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+      className: "bu-select-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "bu-select-dot",
+      style: {
+        background: bu.color || "#8b8a9a"
+      }
+    }), /*#__PURE__*/React.createElement("input", {
       className: "input bu-name-input",
       defaultValue: bu.name,
       onBlur: e => renameBU(bu, e.target.value)
-    })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUTargetInput, {
+    }))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUTargetInput, {
       bu: bu,
       currency: currency,
       rate: rate,
@@ -9471,14 +9817,22 @@ function BusinessUnits({
     style: {
       marginTop: 12
     }
-  }, /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: allocBU
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: allocBU,
     onChange: e => setAllocBU(e.target.value)
   }, businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
-  }, b.name)))), /*#__PURE__*/React.createElement("label", null, "Sales Rep", /*#__PURE__*/React.createElement("select", {
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name))))), /*#__PURE__*/React.createElement("label", null, "Sales Rep", /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: allocRep,
     onChange: e => setAllocRep(e.target.value)
@@ -9535,7 +9889,12 @@ function BusinessUnits({
     placeholder: "Search by rep or business unit…",
     value: allocSearch,
     onChange: e => setAllocSearch(e.target.value)
-  })), /*#__PURE__*/React.createElement("select", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, allocFilterBU !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: allocFilterBU
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: allocFilterBU,
     onChange: e => setAllocFilterBU(e.target.value)
@@ -9543,8 +9902,11 @@ function BusinessUnits({
     value: "All"
   }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
-  }, b.name))), /*#__PURE__*/React.createElement("select", {
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name)))), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: allocFilterRep,
     onChange: e => setAllocFilterRep(e.target.value)
@@ -9580,7 +9942,10 @@ function BusinessUnits({
     className: "table-wrap"
   }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Rep"), /*#__PURE__*/React.createElement("th", null, "Month"), /*#__PURE__*/React.createElement("th", null, "Year"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filteredAllocations.map(t => /*#__PURE__*/React.createElement("tr", {
     key: t.id
-  }, /*#__PURE__*/React.createElement("td", null, t.businessUnit), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUBadge, {
+    businessUnits: businessUnits,
+    name: t.businessUnit
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
     reps: reps,
     name: t.repName
   })), /*#__PURE__*/React.createElement("td", null, MONTH_NAMES[t.month - 1]), /*#__PURE__*/React.createElement("td", null, t.year), /*#__PURE__*/React.createElement("td", null, fmt(t.targetAmount)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
@@ -11572,7 +11937,12 @@ function ProductivityForm({
   }, reps.map(r => /*#__PURE__*/React.createElement("option", {
     key: r.id,
     value: r.name
-  }, r.name)))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("select", {
+  }, r.name)))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: businessUnit
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: businessUnit,
     onChange: e => setBusinessUnit(e.target.value)
@@ -11580,8 +11950,11 @@ function ProductivityForm({
     value: ""
   }, "No Business Unit"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
-  }, b.name)))), /*#__PURE__*/React.createElement("label", null, "Calls Made", /*#__PURE__*/React.createElement("input", {
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name))))), /*#__PURE__*/React.createElement("label", null, "Calls Made", /*#__PURE__*/React.createElement("input", {
     className: "input num-input",
     type: "number",
     min: "0",
@@ -11611,7 +11984,8 @@ function ProductivityTable({
   log,
   onDelete,
   reps,
-  showRep
+  showRep,
+  businessUnits
 }) {
   const sorted = log.slice().sort((a, b) => a.date < b.date ? 1 : -1);
   const totalCalls = sorted.reduce((s, r) => s + (r.calls || 0), 0);
@@ -11632,7 +12006,10 @@ function ProductivityTable({
   }, /*#__PURE__*/React.createElement("td", null, r.date), showRep && /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
     reps: reps,
     name: r.rep
-  })), /*#__PURE__*/React.createElement("td", null, r.businessUnit ? r.businessUnit : /*#__PURE__*/React.createElement("span", {
+  })), /*#__PURE__*/React.createElement("td", null, r.businessUnit ? /*#__PURE__*/React.createElement(BUBadge, {
+    businessUnits: businessUnits,
+    name: r.businessUnit
+  }) : /*#__PURE__*/React.createElement("span", {
     className: "chart-sub",
     style: {
       margin: 0
@@ -11801,7 +12178,12 @@ function ProductivityLog({
     className: "page-sub"
   }, isAdmin ? isScoped ? `Scoped to ${selectedRep}` : "Daily calls, demos & proposals feeding each rep's productivity score" : `Your own activity log — scoped to ${effectiveRep || "you"}`, isAdmin && buFilter !== "All" ? ` · filtered to ${buFilter}` : "")), isAdmin && /*#__PURE__*/React.createElement("div", {
     className: "panel-actions"
-  }, /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, buFilter !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: buFilter
+  }), /*#__PURE__*/React.createElement("select", {
     className: "select",
     value: buFilter,
     onChange: e => setBuFilter(e.target.value)
@@ -11809,8 +12191,11 @@ function ProductivityLog({
     value: "All"
   }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
     key: b.id,
-    value: b.name
-  }, b.name))))), /*#__PURE__*/React.createElement("div", {
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name)))))), /*#__PURE__*/React.createElement("div", {
     className: "charts-grid",
     style: {
       marginBottom: 16
@@ -11961,7 +12346,8 @@ function ProductivityLog({
     log: scopedLog,
     onDelete: deleteEntry,
     reps: reps,
-    showRep: isAdmin && !isScoped
+    showRep: isAdmin && !isScoped,
+    businessUnits: businessUnits
   }));
 }
 
@@ -12319,7 +12705,16 @@ function App() {
       const incoming = messageFromRow(payload.new);
       // The sender's own tab already added this optimistically the moment
       // they hit Send — skip it here so it doesn't show up twice.
-      setMessages(ms => ms.some(m => m.id === incoming.id) ? ms : [incoming, ...ms]);
+      setMessages(ms => {
+        if (ms.some(m => m.id === incoming.id)) return ms;
+        // Play the notification chime only for a message someone ELSE
+        // sent — the sender already heard it fire the instant they hit
+        // Send, so this is what makes an incoming message (a DM or an
+        // announcement) actually announce itself with zero user action.
+        const myOwnName = currentUser.role === "Admin" ? currentUser.name : currentUser.repName || "";
+        if (incoming.senderName !== myOwnName) playMessageChime();
+        return [incoming, ...ms];
+      });
     }).on("postgres_changes", {
       event: "UPDATE",
       schema: "public",
@@ -12650,7 +13045,7 @@ function App() {
     onClick: () => setMobileNavOpen(true),
     "aria-label": "Open menu"
   }, /*#__PURE__*/React.createElement(IconMenu, null)), /*#__PURE__*/React.createElement("img", {
-    className: "mobile-topbar-logo",
+    className: "mobile-topbar-logo forge-anim",
     src: LOGO_ICON_SM,
     alt: "LeadForge"
   }), /*#__PURE__*/React.createElement("span", {
@@ -12704,7 +13099,6 @@ function App() {
     setMessages: setMessages,
     isAdmin: isAdmin,
     reps: activeReps,
-    repTargets: repTargets,
     profiles: profiles,
     currentUser: currentUser,
     lockedRep: lockedRep
