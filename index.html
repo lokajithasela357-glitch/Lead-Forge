@@ -617,6 +617,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .cell-meta-sep{ color:var(--text-muted); }
   .value-input{ width:110px; }
   .stage-select{ min-width:130px; }
+  .stage-cell-edit{ display:flex; align-items:center; gap:6px; }
+  .stage-cell-actions{ display:flex; align-items:center; gap:4px; flex:0 0 auto; }
+  .stage-cell-actions .btn{ padding:5px; }
+  .stage-cell-actions .btn svg{ width:14px; height:14px; }
   .role-select{ min-width:110px; }
   .stage-pill{
     display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
@@ -911,6 +915,29 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     100%{ opacity:0; }
   }
   .alloc-save-row{ display:flex; align-items:center; gap:12px; }
+
+  /* Global "X added" confirmation toasts (see showToast/ToastHost) — stacked
+     bottom-right, each one self-dismissing, never blocking input the way
+     window.alert() does. */
+  .toast-stack{
+    position:fixed; bottom:24px; right:24px; z-index:2000;
+    display:flex; flex-direction:column-reverse; gap:10px;
+    pointer-events:none;
+  }
+  .toast-item{
+    display:flex; align-items:center; gap:8px;
+    background:var(--surface-2); border:1px solid var(--border);
+    color:var(--text-primary); font-size:13px; font-weight:600;
+    padding:11px 16px; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.35);
+    animation:toastInOut 2.6s ease forwards;
+  }
+  .toast-item svg{ width:16px; height:16px; flex:0 0 auto; }
+  @keyframes toastInOut{
+    0%{ opacity:0; transform:translateY(8px); }
+    8%{ opacity:1; transform:translateY(0); }
+    88%{ opacity:1; }
+    100%{ opacity:0; transform:translateY(-4px); }
+  }
 
   /* Filters bar (Lead Pipeline) */
   .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; }
@@ -1570,6 +1597,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     background:rgba(0,136,255,0.05);
   }
   .drawer-save-btn{ width:100%; justify-content:center; display:flex; align-items:center; font-size:14px; padding:12px 17px; }
+  .drawer-unsaved-note{
+    display:block; text-align:center; font-size:11.5px; font-weight:700;
+    color:var(--accent-blue); margin-bottom:8px; letter-spacing:.02em;
+  }
 
   /* ---------------------------------------------------------------- */
   /* Message Center — header mail icon + admin/rep messaging panel    */
@@ -4985,9 +5016,21 @@ function CurrencyControl({
   useEffect(() => {
     setRateInput(String(rate));
   }, [rate]);
+  const [justSaved, setJustSaved] = useState(false);
+  const n = Number(rateInput);
+  const rateDirty = isFinite(n) && n > 0 && n !== rate;
+
+  // Used to auto-commit on blur, so clicking anywhere else after typing a
+  // new rate silently applied it — now it only ever commits via the
+  // explicit Save (or Enter), with Cancel to discard the typed figure.
   function commitRate() {
-    const n = Number(rateInput);
-    if (isFinite(n) && n > 0) setRate(n);else setRateInput(String(rate));
+    if (!rateDirty) return;
+    setRate(n);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
+  }
+  function cancelRate() {
+    setRateInput(String(rate));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "currency-bar"
@@ -5003,16 +5046,28 @@ function CurrencyControl({
     step: "0.01",
     value: rateInput,
     onChange: e => setRateInput(e.target.value),
-    onBlur: commitRate,
     onKeyDown: e => {
-      if (e.key === "Enter") {
-        commitRate();
-        e.currentTarget.blur();
-      }
+      if (e.key === "Enter") commitRate();else if (e.key === "Escape") cancelRate();
     }
   }), /*#__PURE__*/React.createElement("span", {
     className: "rate-label"
-  }, "LKR")), /*#__PURE__*/React.createElement("span", {
+  }, "LKR"), justSaved && /*#__PURE__*/React.createElement("span", {
+    className: "bu-row-saved"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), " Saved"), rateDirty && !justSaved && /*#__PURE__*/React.createElement("span", {
+    className: "stage-cell-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn success-ghost",
+    title: "Save exchange rate",
+    onClick: commitRate
+  }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn ghost bu-row-cancel",
+    title: "Discard change",
+    onClick: cancelRate
+  }, /*#__PURE__*/React.createElement(IconX, null)))), /*#__PURE__*/React.createElement("span", {
     className: "currency-active-label",
     title: "Every amount in the app right now is shown in this currency"
   }, "Showing amounts in"), /*#__PURE__*/React.createElement("div", {
@@ -6332,6 +6387,45 @@ function MessageCenter({
     className: "empty-feed"
   }, "No announcements ", isAdmin ? "sent" : "", " yet."), announcements.map(renderAnnouncementItem)))));
 }
+
+// Lightweight, app-wide "X added" confirmation toast -- deliberately outside
+// React's component tree (a plain module-level listener, same style as
+// sbWriteOrQueue and the other free-standing helpers in this file) so any
+// "add" function, however deeply nested inside the tab it lives in, can call
+// showToast(...) directly the moment its write succeeds, without threading a
+// callback prop down through every intermediate component. Mounted once via
+// <ToastHost/> at the app root; non-blocking and self-dismissing, unlike
+// window.alert(), since a routine "added" confirmation shouldn't interrupt
+// what the person does next.
+let toastListener = null;
+function showToast(message) {
+  if (toastListener) toastListener(message);
+}
+function ToastHost() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    toastListener = message => {
+      const id = uid();
+      setToasts(ts => [...ts, {
+        id,
+        message
+      }]);
+      setTimeout(() => setToasts(ts => ts.filter(t => t.id !== id)), 2600);
+    };
+    return () => {
+      toastListener = null;
+    };
+  }, []);
+  if (!toasts.length) return null;
+  return ReactDOM.createPortal(/*#__PURE__*/React.createElement("div", {
+    className: "toast-stack"
+  }, toasts.map(t => /*#__PURE__*/React.createElement("div", {
+    key: t.id,
+    className: "toast-item"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), "\xA0 ", t.message))), document.body);
+}
 function ProfileFab({
   user,
   isAdmin,
@@ -7312,12 +7406,20 @@ function AlertsBanner({
 /* Leads table (Lead Pipeline)                                            */
 /* ---------------------------------------------------------------------- */
 
-function LeadsTable({
-  leads,
+// One Lead Pipeline table row. The Stage dropdown is the only field
+// editable directly in the table (everything else lives in the Lead
+// Drawer) — it now holds its OWN local draft, showing a small Save/Cancel
+// pair only once you've actually picked a different stage than what's
+// saved, instead of writing the instant the dropdown changes.
+function LeadRow({
+  l,
   reps,
   businessUnits,
-  currency,
-  rate,
+  fmt,
+  mode,
+  now,
+  selected,
+  onToggleSelect,
   onOpenLead,
   onStageChange,
   onArchive,
@@ -7325,37 +7427,21 @@ function LeadsTable({
   onDelete,
   onRestore,
   onPermanentDelete,
-  onDuplicate,
-  mode,
-  selectedIds,
-  onToggleSelect,
-  onToggleSelectAll,
-  allSelected
+  onDuplicate
 }) {
-  const fmt = makeMoneyFormatter(currency, rate);
-  const now = Date.now();
-  if (!leads.length) {
-    const emptyText = mode === "bin" ? "The Recycle Bin is empty." : mode === "archived" ? "No leads have been archived." : "No leads match your filters.";
-    return /*#__PURE__*/React.createElement("div", {
-      className: "empty-feed",
-      style: {
-        padding: "36px 0"
-      }
-    }, emptyText);
+  const [draftStage, setDraftStage] = useState(l.stage);
+  useEffect(() => {
+    setDraftStage(l.stage);
+  }, [l.stage]);
+  const stageDirty = mode === "active" && draftStage !== l.stage;
+  function handleSaveStage() {
+    onStageChange(l.id, draftStage);
   }
-  return /*#__PURE__*/React.createElement("div", {
-    className: "table-wrap"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-    className: "th-checkbox"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    className: "row-checkbox",
-    checked: allSelected,
-    onChange: onToggleSelectAll,
-    title: "Select all"
-  })), /*#__PURE__*/React.createElement("th", null, "Contact / Company"), /*#__PURE__*/React.createElement("th", null, "Deal Value"), /*#__PURE__*/React.createElement("th", null, "Stage"), /*#__PURE__*/React.createElement("th", null, "Win %"), /*#__PURE__*/React.createElement("th", null, "Priority"), /*#__PURE__*/React.createElement("th", null, "Assigned Rep"), /*#__PURE__*/React.createElement("th", null, "Business Unit"), mode === "active" && /*#__PURE__*/React.createElement("th", null, "Follow-Up"), mode === "archived" && /*#__PURE__*/React.createElement("th", null, "Archived"), mode === "bin" && /*#__PURE__*/React.createElement("th", null, "Auto-Deletes In"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, leads.map(l => /*#__PURE__*/React.createElement("tr", {
-    key: l.id,
-    className: "lead-row" + (mode === "bin" ? " lead-row-bin" : "") + (selectedIds.has(l.id) ? " lead-row-selected" : ""),
+  function handleCancelStage() {
+    setDraftStage(l.stage);
+  }
+  return /*#__PURE__*/React.createElement("tr", {
+    className: "lead-row" + (mode === "bin" ? " lead-row-bin" : "") + (selected ? " lead-row-selected" : ""),
     onClick: () => mode !== "bin" && onOpenLead(l.id)
   }, /*#__PURE__*/React.createElement("td", {
     className: "th-checkbox",
@@ -7363,7 +7449,7 @@ function LeadsTable({
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
     className: "row-checkbox",
-    checked: selectedIds.has(l.id),
+    checked: selected,
     onChange: () => onToggleSelect(l.id),
     title: "Select lead"
   })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
@@ -7378,14 +7464,26 @@ function LeadsTable({
     className: "cell-org"
   }, l.company), !l.jobTitle && !l.company && "—")), /*#__PURE__*/React.createElement("td", null, fmt(l.value)), /*#__PURE__*/React.createElement("td", {
     onClick: e => e.stopPropagation()
-  }, mode === "active" ? /*#__PURE__*/React.createElement("select", {
+  }, mode === "active" ? /*#__PURE__*/React.createElement("div", {
+    className: "stage-cell-edit"
+  }, /*#__PURE__*/React.createElement("select", {
     className: "select stage-select",
-    value: l.stage,
-    onChange: e => onStageChange(l.id, e.target.value)
+    value: draftStage,
+    onChange: e => setDraftStage(e.target.value)
   }, STAGES.map(s => /*#__PURE__*/React.createElement("option", {
     key: s,
     value: s
-  }, s))) : /*#__PURE__*/React.createElement(StagePill, {
+  }, s))), stageDirty && /*#__PURE__*/React.createElement("span", {
+    className: "stage-cell-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn success-ghost",
+    title: "Save stage change",
+    onClick: handleSaveStage
+  }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost bu-row-cancel",
+    title: "Discard stage change",
+    onClick: handleCancelStage
+  }, /*#__PURE__*/React.createElement(IconX, null)))) : /*#__PURE__*/React.createElement(StagePill, {
     stage: l.stage
   })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(WinProbabilityPill, {
     value: l.winProbability
@@ -7446,13 +7544,81 @@ function LeadsTable({
     className: "btn danger-solid",
     title: "Delete permanently",
     onClick: () => onPermanentDelete(l.id)
-  }, /*#__PURE__*/React.createElement(IconTrashForever, null)))))))));
+  }, /*#__PURE__*/React.createElement(IconTrashForever, null)))));
+}
+function LeadsTable({
+  leads,
+  reps,
+  businessUnits,
+  currency,
+  rate,
+  onOpenLead,
+  onStageChange,
+  onArchive,
+  onUnarchive,
+  onDelete,
+  onRestore,
+  onPermanentDelete,
+  onDuplicate,
+  mode,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
+  allSelected
+}) {
+  const fmt = makeMoneyFormatter(currency, rate);
+  const now = Date.now();
+  if (!leads.length) {
+    const emptyText = mode === "bin" ? "The Recycle Bin is empty." : mode === "archived" ? "No leads have been archived." : "No leads match your filters.";
+    return /*#__PURE__*/React.createElement("div", {
+      className: "empty-feed",
+      style: {
+        padding: "36px 0"
+      }
+    }, emptyText);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "table-wrap"
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    className: "th-checkbox"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    className: "row-checkbox",
+    checked: allSelected,
+    onChange: onToggleSelectAll,
+    title: "Select all"
+  })), /*#__PURE__*/React.createElement("th", null, "Contact / Company"), /*#__PURE__*/React.createElement("th", null, "Deal Value"), /*#__PURE__*/React.createElement("th", null, "Stage"), /*#__PURE__*/React.createElement("th", null, "Win %"), /*#__PURE__*/React.createElement("th", null, "Priority"), /*#__PURE__*/React.createElement("th", null, "Assigned Rep"), /*#__PURE__*/React.createElement("th", null, "Business Unit"), mode === "active" && /*#__PURE__*/React.createElement("th", null, "Follow-Up"), mode === "archived" && /*#__PURE__*/React.createElement("th", null, "Archived"), mode === "bin" && /*#__PURE__*/React.createElement("th", null, "Auto-Deletes In"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, leads.map(l => /*#__PURE__*/React.createElement(LeadRow, {
+    key: l.id,
+    l: l,
+    reps: reps,
+    businessUnits: businessUnits,
+    fmt: fmt,
+    mode: mode,
+    now: now,
+    selected: selectedIds.has(l.id),
+    onToggleSelect: onToggleSelect,
+    onOpenLead: onOpenLead,
+    onStageChange: onStageChange,
+    onArchive: onArchive,
+    onUnarchive: onUnarchive,
+    onDelete: onDelete,
+    onRestore: onRestore,
+    onPermanentDelete: onPermanentDelete,
+    onDuplicate: onDuplicate
+  })))));
 }
 
 /* ---------------------------------------------------------------------- */
 /* Lead detail drawer (slide-out, tabbed)                                 */
 /* ---------------------------------------------------------------------- */
 
+// Every field below is a LOCAL DRAFT — nothing here reaches Supabase (or
+// even the shared `leads` state) until the explicit "Save Lead"/"Add Lead"
+// button is clicked. This replaced an earlier version that auto-saved every
+// field ~600ms after you stopped typing, with no confirmation and no way to
+// back out of a half-finished edit. Closing (the X, or clicking the dimmed
+// backdrop) while a draft is dirty now asks for confirmation instead of
+// silently discarding — or silently keeping — whatever was typed.
 function LeadDrawer({
   lead,
   reps,
@@ -7460,7 +7626,6 @@ function LeadDrawer({
   currency,
   rate,
   onClose,
-  onChange,
   onAddNote,
   onDeleteNote,
   onDelete,
@@ -7469,34 +7634,60 @@ function LeadDrawer({
   onDuplicate,
   isAdmin,
   isNewLead,
-  onSaveAndClose
+  onSaveAndClose,
+  onDiscardNew
 }) {
   const [tab, setTab] = useState("contact");
   const [noteText, setNoteText] = useState("");
+  function draftFromLead(l) {
+    return {
+      fullName: l.fullName || "",
+      jobTitle: l.jobTitle || "",
+      email: l.email || "",
+      phone: l.phone || "",
+      preferredChannel: l.preferredChannel || CHANNELS[0],
+      company: l.company || "",
+      website: l.website || "",
+      industry: l.industry || "",
+      companySize: l.companySize || COMPANY_SIZES[0],
+      stage: l.stage,
+      winProbability: l.winProbability,
+      priority: l.priority,
+      source: l.source,
+      assignedRep: l.assignedRep || "",
+      businessUnit: l.businessUnit || "",
+      targetCloseDate: l.targetCloseDate || "",
+      nextFollowUpDate: l.nextFollowUpDate || "",
+      reasonLost: l.reasonLost || "",
+      closedDate: l.closedDate || null,
+      scope: l.scope || "",
+      painPoints: l.painPoints || "",
+      budgetProcess: l.budgetProcess || ""
+    };
+  }
+  const [draft, setDraft] = useState(() => lead ? draftFromLead(lead) : null);
+
   // The Deal Value field keeps its own local text state instead of being
-  // driven straight off `lead.value` on every keystroke. A fully-controlled
-  // number input whose value is recomputed from the lead on every render
-  // snaps back to "0" the instant the field goes empty (Number("") is 0),
-  // which makes it impossible to backspace an existing figure and type a
-  // new one — the "0" keeps reappearing before the next digit lands. Synced
-  // from the lead only when switching to a different lead or toggling
-  // currency, never while actively typing.
+  // driven straight off the draft on every keystroke. A fully-controlled
+  // number input whose value is recomputed on every render snaps back to
+  // "0" the instant the field goes empty (Number("") is 0), which makes it
+  // impossible to backspace an existing figure and type a new one — the "0"
+  // keeps reappearing before the next digit lands. Synced from the lead
+  // only when switching to a different lead or toggling currency, never
+  // while actively typing.
   const [valueInput, setValueInput] = useState("0");
   useEffect(() => {
     if (!lead) return;
+    setDraft(draftFromLead(lead));
     setValueInput(String(Math.round(toDisplayAmount(lead.value || 0, currency, rate))));
     // eslint-disable-next-line
   }, [lead && lead.id, currency, rate]);
-  if (!lead) return null;
+  if (!lead || !draft) return null;
   function set(field, value) {
-    onChange(lead.id, {
+    setDraft(d => ({
+      ...d,
       [field]: value
-    });
-  }
-  function setMoney(field, displayValue) {
-    onChange(lead.id, {
-      [field]: toBaseUSD(displayValue, currency, rate)
-    });
+    }));
   }
   function handleValueInputChange(raw) {
     // Deal value is always a whole, non-negative number — block anything
@@ -7505,7 +7696,6 @@ function LeadDrawer({
     // has typed so far, including empty while they're clearing it.
     if (raw !== "" && !/^\d+$/.test(raw)) return;
     setValueInput(raw);
-    setMoney("value", raw);
   }
   function handleValueInputBlur() {
     // Once they're done editing, an empty box (or anything that parsed to
@@ -7513,28 +7703,32 @@ function LeadDrawer({
     if (valueInput === "") setValueInput("0");
   }
   function handleStageSelect(newStage) {
-    if (newStage === "Closed Lost" && lead.stage !== "Closed Lost") {
-      const reason = window.prompt("Reason lost? (Price, Competitor, Timing, Feature Fit, Ghosted, or your own note)", lead.reasonLost || "Price");
-      onChange(lead.id, {
+    if (newStage === "Closed Lost" && draft.stage !== "Closed Lost") {
+      const reason = window.prompt("Reason lost? (Price, Competitor, Timing, Feature Fit, Ghosted, or your own note)", draft.reasonLost || "Price");
+      setDraft(d => ({
+        ...d,
         stage: newStage,
         reasonLost: reason || "Other",
         closedDate: todayISO()
-      });
-    } else if (newStage === "Closed Won" && lead.stage !== "Closed Won") {
-      onChange(lead.id, {
+      }));
+    } else if (newStage === "Closed Won" && draft.stage !== "Closed Won") {
+      setDraft(d => ({
+        ...d,
         stage: newStage,
         winProbability: 100,
         closedDate: todayISO()
-      });
+      }));
     } else if (newStage !== "Closed Won" && newStage !== "Closed Lost") {
-      onChange(lead.id, {
+      setDraft(d => ({
+        ...d,
         stage: newStage,
         closedDate: null
-      });
+      }));
     } else {
-      onChange(lead.id, {
+      setDraft(d => ({
+        ...d,
         stage: newStage
-      });
+      }));
     }
   }
   function submitNote() {
@@ -7543,11 +7737,55 @@ function LeadDrawer({
     onAddNote(lead.id, t);
     setNoteText("");
   }
+  const dirty = draft.fullName !== (lead.fullName || "") || draft.jobTitle !== (lead.jobTitle || "") || draft.email !== (lead.email || "") || draft.phone !== (lead.phone || "") || draft.preferredChannel !== lead.preferredChannel || draft.company !== (lead.company || "") || draft.website !== (lead.website || "") || draft.industry !== (lead.industry || "") || draft.companySize !== lead.companySize || draft.stage !== lead.stage || Number(draft.winProbability) !== Number(lead.winProbability) || draft.priority !== lead.priority || draft.source !== lead.source || draft.assignedRep !== (lead.assignedRep || "") || draft.businessUnit !== (lead.businessUnit || "") || draft.targetCloseDate !== (lead.targetCloseDate || "") || draft.nextFollowUpDate !== (lead.nextFollowUpDate || "") || (draft.reasonLost || "") !== (lead.reasonLost || "") || draft.scope !== (lead.scope || "") || draft.painPoints !== (lead.painPoints || "") || draft.budgetProcess !== (lead.budgetProcess || "") || Number(valueInput || 0) !== Math.round(toDisplayAmount(lead.value || 0, currency, rate));
+
+  // A brand-new lead (created by "+ Add Lead" but never saved) has no
+  // Supabase row yet -- closing it any way other than the "Add Lead" button
+  // discards the whole thing rather than leaving a blank/half-filled lead
+  // behind. An existing lead just reverts the in-progress edit and keeps
+  // whatever was last actually saved.
+  function requestClose() {
+    if (isNewLead) {
+      if (dirty && !window.confirm("This lead hasn't been saved yet. Discard it?")) return;
+      onDiscardNew ? onDiscardNew() : onClose();
+      return;
+    }
+    if (dirty && !window.confirm("You have unsaved changes to this lead. Discard them and close?")) return;
+    onClose();
+  }
+  function handleSaveLead() {
+    const patch = {
+      fullName: draft.fullName,
+      jobTitle: draft.jobTitle,
+      email: draft.email,
+      phone: draft.phone,
+      preferredChannel: draft.preferredChannel,
+      company: draft.company,
+      website: draft.website,
+      industry: draft.industry,
+      companySize: draft.companySize,
+      value: toBaseUSD(Number(valueInput) || 0, currency, rate),
+      stage: draft.stage,
+      winProbability: Number(draft.winProbability) || 0,
+      priority: draft.priority,
+      source: draft.source,
+      assignedRep: draft.assignedRep,
+      businessUnit: draft.businessUnit,
+      targetCloseDate: draft.targetCloseDate,
+      nextFollowUpDate: draft.nextFollowUpDate,
+      reasonLost: draft.reasonLost,
+      closedDate: draft.closedDate,
+      scope: draft.scope,
+      painPoints: draft.painPoints,
+      budgetProcess: draft.budgetProcess
+    };
+    onSaveAndClose(lead.id, patch);
+  }
   const sortedNotes = (lead.interactions || []).slice().sort((a, b) => a.ts < b.ts ? 1 : -1);
   const drawer = /*#__PURE__*/React.createElement("div", {
     className: "drawer-overlay",
     onMouseDown: e => {
-      if (e.target === e.currentTarget) onClose();
+      if (e.target === e.currentTarget) requestClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "lead-drawer",
@@ -7556,11 +7794,11 @@ function LeadDrawer({
     className: "drawer-header"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "drawer-title"
-  }, lead.fullName || "New Lead"), /*#__PURE__*/React.createElement("div", {
+  }, draft.fullName || "New Lead"), /*#__PURE__*/React.createElement("div", {
     className: "drawer-sub"
-  }, lead.jobTitle, lead.jobTitle && lead.company ? " at " : "", lead.company, !lead.jobTitle && !lead.company ? "—" : "")), /*#__PURE__*/React.createElement("button", {
+  }, draft.jobTitle, draft.jobTitle && draft.company ? " at " : "", draft.company, !draft.jobTitle && !draft.company ? "—" : "")), /*#__PURE__*/React.createElement("button", {
     className: "drawer-close",
-    onClick: onClose
+    onClick: requestClose
   }, /*#__PURE__*/React.createElement(IconX, null))), /*#__PURE__*/React.createElement("div", {
     className: "drawer-actions"
   }, /*#__PURE__*/React.createElement("a", {
@@ -7572,7 +7810,7 @@ function LeadDrawer({
   }, /*#__PURE__*/React.createElement(IconPhone, null), "\xA0 Call"), /*#__PURE__*/React.createElement("div", {
     className: "drawer-actions-spacer"
   }), /*#__PURE__*/React.createElement(StagePill, {
-    stage: lead.stage
+    stage: draft.stage
   })), /*#__PURE__*/React.createElement("div", {
     className: "drawer-tabs"
   }, [["contact", "Full Contact Info"], ["scope", "Project Scope & Description"], ["notes", "Meeting & Call Notes"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
@@ -7589,23 +7827,23 @@ function LeadDrawer({
     className: "drawer-grid"
   }, /*#__PURE__*/React.createElement("label", null, "Full Name", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.fullName,
+    value: draft.fullName,
     onChange: e => set("fullName", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Job Title", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.jobTitle,
+    value: draft.jobTitle,
     onChange: e => set("jobTitle", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Email", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.email,
+    value: draft.email,
     onChange: e => set("email", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Phone", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.phone,
+    value: draft.phone,
     onChange: e => set("phone", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Preferred Channel", /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.preferredChannel,
+    value: draft.preferredChannel,
     onChange: e => set("preferredChannel", e.target.value)
   }, CHANNELS.map(c => /*#__PURE__*/React.createElement("option", {
     key: c,
@@ -7616,19 +7854,19 @@ function LeadDrawer({
     className: "drawer-grid"
   }, /*#__PURE__*/React.createElement("label", null, "Company", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.company,
+    value: draft.company,
     onChange: e => set("company", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Website / LinkedIn", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.website,
+    value: draft.website,
     onChange: e => set("website", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Industry", /*#__PURE__*/React.createElement("input", {
     className: "input",
-    value: lead.industry,
+    value: draft.industry,
     onChange: e => set("industry", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Company Size", /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.companySize,
+    value: draft.companySize,
     onChange: e => set("companySize", e.target.value)
   }, COMPANY_SIZES.map(c => /*#__PURE__*/React.createElement("option", {
     key: c,
@@ -7644,7 +7882,7 @@ function LeadDrawer({
     onCommit: handleValueInputBlur
   })), /*#__PURE__*/React.createElement("label", null, "Pipeline Stage", /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.stage,
+    value: draft.stage,
     onChange: e => handleStageSelect(e.target.value)
   }, STAGES.map(s => /*#__PURE__*/React.createElement("option", {
     key: s,
@@ -7656,27 +7894,27 @@ function LeadDrawer({
     type: "number",
     min: "0",
     max: "100",
-    value: lead.winProbability,
+    value: draft.winProbability,
     onChange: e => set("winProbability", Math.max(0, Math.min(100, Number(e.target.value))))
   }), /*#__PURE__*/React.createElement("span", {
     className: "input-suffix"
   }, "%"))), /*#__PURE__*/React.createElement("label", null, "Priority Level", /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.priority,
+    value: draft.priority,
     onChange: e => set("priority", e.target.value)
   }, PRIORITIES.map(p => /*#__PURE__*/React.createElement("option", {
     key: p,
     value: p
   }, p)))), /*#__PURE__*/React.createElement("label", null, "Lead Source", /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.source,
+    value: draft.source,
     onChange: e => set("source", e.target.value)
   }, LEAD_SOURCES.map(s => /*#__PURE__*/React.createElement("option", {
     key: s,
     value: s
   }, s)))), /*#__PURE__*/React.createElement("label", null, "Assigned Rep", isAdmin ? /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.assignedRep,
+    value: draft.assignedRep,
     onChange: e => set("assignedRep", e.target.value)
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
@@ -7692,19 +7930,19 @@ function LeadDrawer({
       cursor: "not-allowed"
     },
     title: "Only Admins can reassign a lead"
-  }, lead.assignedRep ? /*#__PURE__*/React.createElement(RepBadge, {
+  }, draft.assignedRep ? /*#__PURE__*/React.createElement(RepBadge, {
     reps: reps,
-    name: lead.assignedRep
+    name: draft.assignedRep
   }) : /*#__PURE__*/React.createElement("span", {
     className: "tag-muted"
   }, "Unassigned"))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("div", {
     className: "bu-select-wrap"
   }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
     businessUnits: businessUnits,
-    value: lead.businessUnit
+    value: draft.businessUnit
   }), /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.businessUnit || "",
+    value: draft.businessUnit || "",
     onChange: e => set("businessUnit", e.target.value)
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
@@ -7721,18 +7959,18 @@ function LeadDrawer({
   }, /*#__PURE__*/React.createElement("label", null, "Target Close Date", /*#__PURE__*/React.createElement("input", {
     className: "input",
     type: "date",
-    value: lead.targetCloseDate || "",
+    value: draft.targetCloseDate || "",
     onChange: e => set("targetCloseDate", e.target.value)
   })), /*#__PURE__*/React.createElement("label", null, "Next Follow-Up Date", /*#__PURE__*/React.createElement("input", {
     className: "input",
     type: "date",
-    value: lead.nextFollowUpDate || "",
+    value: draft.nextFollowUpDate || "",
     onChange: e => set("nextFollowUpDate", e.target.value)
-  }))), lead.stage === "Closed Lost" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }))), draft.stage === "Closed Lost" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "field-group-title"
   }, "Reason Lost"), /*#__PURE__*/React.createElement("select", {
     className: "select",
-    value: lead.reasonLost || "",
+    value: draft.reasonLost || "",
     onChange: e => set("reasonLost", e.target.value)
   }, REASONS_LOST.map(r => /*#__PURE__*/React.createElement("option", {
     key: r,
@@ -7747,7 +7985,7 @@ function LeadDrawer({
     className: "textarea-field"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea textarea-lg",
-    value: lead.scope,
+    value: draft.scope,
     placeholder: "Deliverables, integrations, exclusions…",
     onChange: e => set("scope", e.target.value)
   })), /*#__PURE__*/React.createElement("div", {
@@ -7756,7 +7994,7 @@ function LeadDrawer({
     className: "textarea-field"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea textarea-lg",
-    value: lead.painPoints,
+    value: draft.painPoints,
     placeholder: "What's broken today, and what does success look like?",
     onChange: e => set("painPoints", e.target.value)
   })), /*#__PURE__*/React.createElement("div", {
@@ -7765,12 +8003,20 @@ function LeadDrawer({
     className: "textarea-field"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea",
-    value: lead.budgetProcess,
+    value: draft.budgetProcess,
     placeholder: "Budget range, economic buyer, approval process, timeline…",
     onChange: e => set("budgetProcess", e.target.value)
   }))), tab === "notes" && /*#__PURE__*/React.createElement("div", {
     className: "drawer-panel"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, isNewLead ?
+  /*#__PURE__*/
+  // Notes write straight to Supabase the moment "Add Note" is
+  // clicked (there's no draft/save step for them) -- but this
+  // lead itself doesn't have a row there yet, so a note logged
+  // here would silently vanish. Save the lead first.
+  React.createElement("div", {
+    className: "empty-feed"
+  }, "Save this lead before logging meeting or call notes.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "field-group-title"
   }, "Log a Meeting or Call"), /*#__PURE__*/React.createElement("div", {
     className: "textarea-field",
@@ -7801,14 +8047,27 @@ function LeadDrawer({
   }, n.text)), /*#__PURE__*/React.createElement("button", {
     className: "btn danger-ghost interaction-del",
     onClick: () => onDeleteNote(lead.id, n.id)
-  }, /*#__PURE__*/React.createElement(IconTrash, null))))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconTrash, null)))))))), /*#__PURE__*/React.createElement("div", {
     className: "drawer-save-bar"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, dirty && !isNewLead && /*#__PURE__*/React.createElement("span", {
+    className: "drawer-unsaved-note"
+  }, "Unsaved changes"), /*#__PURE__*/React.createElement("button", {
     className: "btn drawer-save-btn",
-    onClick: () => onSaveAndClose(lead.id)
+    disabled: !isNewLead && !dirty,
+    onClick: handleSaveLead
   }, /*#__PURE__*/React.createElement(IconCheck, null), "\xA0 ", isNewLead ? "Add Lead" : "Save Lead")), /*#__PURE__*/React.createElement("div", {
     className: "drawer-footer"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, isNewLead ?
+  /*#__PURE__*/
+  // Duplicate/Archive/Move-to-Bin all assume a lead that already
+  // exists in Supabase -- this one doesn't yet. The only thing
+  // that makes sense before it's saved is discarding it outright.
+  React.createElement("button", {
+    className: "btn ghost drawer-delete",
+    onClick: () => {
+      if (!dirty || window.confirm("This lead hasn't been saved yet. Discard it?")) onDiscardNew ? onDiscardNew() : onClose();
+    }
+  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0 Discard Lead") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     className: "btn ghost",
     onClick: () => onDuplicate(lead.id)
   }, /*#__PURE__*/React.createElement(IconCopy, null), "\xA0 Duplicate Lead"), lead.archivedAt ? /*#__PURE__*/React.createElement("button", {
@@ -7823,7 +8082,7 @@ function LeadDrawer({
       onDelete(lead.id);
       onClose();
     }
-  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0 Move to Recycle Bin"))));
+  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0 Move to Recycle Bin")))));
   return ReactDOM.createPortal(drawer, document.body);
 }
 
@@ -7858,71 +8117,21 @@ function LeadPipeline({
   // needs to read "Add Lead" instead of "Save Lead".
   const [justCreatedId, setJustCreatedId] = useState(null);
 
-  // Field-by-field edits in the drawer fire on every keystroke — debounce
-  // those into Supabase so we're not writing on every character typed.
-  // Discrete actions (archive, delete, stage change…) flush immediately.
-  const pendingPatchesRef = useRef({});
-  const pendingTimersRef = useRef({});
-  function flushLeadPatch(id) {
-    const patch = pendingPatchesRef.current[id];
-    delete pendingPatchesRef.current[id];
-    if (pendingTimersRef.current[id]) {
-      clearTimeout(pendingTimersRef.current[id]);
-      delete pendingTimersRef.current[id];
-    }
-    if (!patch) return;
-    sbWriteOrQueue({
-      table: "leads",
-      action: "update",
-      row: partialLeadToRow(patch),
-      matchColumn: "id",
-      matchValue: id
-    }).then(({
-      error
-    }) => {
-      if (error) window.alert("Could not save changes to this lead: " + error.message);
-    });
-  }
-  useEffect(() => {
-    // Flush any pending debounced writes if the tab/component goes away.
-    return () => {
-      Object.keys(pendingTimersRef.current).forEach(flushLeadPatch);
-    };
-    // eslint-disable-next-line
-  }, []);
-
-  // Debounced — for live-typing field edits from the drawer.
-  function updateLead(id, patch) {
-    setLeads(ls => ls.map(l => l.id === id ? {
-      ...l,
-      ...patch
-    } : l));
-    pendingPatchesRef.current[id] = {
-      ...(pendingPatchesRef.current[id] || {}),
-      ...patch
-    };
-    if (pendingTimersRef.current[id]) clearTimeout(pendingTimersRef.current[id]);
-    pendingTimersRef.current[id] = setTimeout(() => flushLeadPatch(id), 600);
-  }
-  // Immediate — for discrete, click-driven actions.
+  // Every field edit -- whether typed in the Lead Drawer or a quick action
+  // elsewhere -- only ever reaches Supabase through this single immediate
+  // write, and only when explicitly triggered (a Save click, a discrete
+  // button). Nothing auto-saves on a keystroke or a dropdown selection
+  // alone anymore -- see LeadDrawer's own local draft state and LeadRow's
+  // per-row Stage draft below.
   function updateLeadNow(id, patch) {
     setLeads(ls => ls.map(l => l.id === id ? {
       ...l,
       ...patch
     } : l));
-    const merged = {
-      ...(pendingPatchesRef.current[id] || {}),
-      ...patch
-    };
-    delete pendingPatchesRef.current[id];
-    if (pendingTimersRef.current[id]) {
-      clearTimeout(pendingTimersRef.current[id]);
-      delete pendingTimersRef.current[id];
-    }
     sbWriteOrQueue({
       table: "leads",
       action: "update",
-      row: partialLeadToRow(merged),
+      row: partialLeadToRow(patch),
       matchColumn: "id",
       matchValue: id
     }).then(({
@@ -8002,32 +8211,28 @@ function LeadPipeline({
   function clearSelection() {
     setSelectedIds(new Set());
   }
-  async function addLead() {
+
+  // Clicking "+ Add Lead" only ever creates a LOCAL placeholder and opens its
+  // drawer -- nothing is written to Supabase yet. That only happens once the
+  // drawer's "Add Lead" button is actually clicked (see saveAndCloseLead's
+  // insert branch below). Closing the drawer any other way discards this
+  // placeholder entirely instead of leaving a blank/half-filled lead behind
+  // (see discardNewLead).
+  function addLead() {
     const blank = makeBlankLead();
     blank.id = uuidv4();
     if (lockedRep) blank.assignedRep = lockedRep;
-    // Optimistic: show the new lead and open its drawer immediately, whether
-    // we're online or not — the write itself is queued if we can't reach
-    // Supabase right now.
     setLeads(ls => [blank, ...ls]);
     setActiveLeadId(blank.id);
     setJustCreatedId(blank.id);
-    const {
-      error
-    } = await sbWriteOrQueue({
-      table: "leads",
-      action: "insert",
-      row: {
-        id: blank.id,
-        ...leadToRow(blank)
-      }
-    });
-    if (error) {
-      window.alert("Could not create lead: " + error.message);
-      setLeads(ls => ls.filter(l => l.id !== blank.id));
-      if (activeLeadId === blank.id) setActiveLeadId(null);
-      if (justCreatedId === blank.id) setJustCreatedId(null);
-    }
+  }
+  // Undoes addLead(): removes the never-saved placeholder lead from local
+  // state. No Supabase call is needed -- it was never written there in the
+  // first place.
+  function discardNewLead(id) {
+    setLeads(ls => ls.filter(l => l.id !== id));
+    setJustCreatedId(cur => cur === id ? null : cur);
+    if (activeLeadId === id) setActiveLeadId(null);
   }
   // Bulk-creates every mapped row from the Import Leads modal in one round
   // trip, mirroring the existing JSON-backup restore's bulk insert pattern
@@ -8053,12 +8258,56 @@ function LeadPipeline({
     setImportOpen(false);
     window.alert(`Import complete: ${inserted.length} lead${inserted.length === 1 ? "" : "s"} added.`);
   }
-  // The drawer's primary "Add Lead" / "Save Lead" button — flushes any
-  // still-debounced field edits immediately (so nothing typed in the last
-  // 600ms is lost) and closes the drawer, giving the person a clear, visible
-  // point of completion instead of just an X button in the corner.
-  function saveAndCloseLead(id) {
-    flushLeadPatch(id);
+  // The drawer's primary "Add Lead" / "Save Lead" button — the ONE moment
+  // any field edited in the drawer actually reaches Supabase (the drawer
+  // itself holds everything as a local draft until this fires), then
+  // closes, giving the person a clear, visible point of completion instead
+  // of just an X button in the corner. A brand-new, never-saved lead (still
+  // tracked by justCreatedId) has no row in Supabase yet, so this is the
+  // point it gets INSERTed for the first time -- everything else just goes
+  // through the normal UPDATE path.
+  function saveAndCloseLead(id, patch) {
+    const isPendingNew = justCreatedId === id;
+    setLeads(ls => ls.map(l => l.id === id ? {
+      ...l,
+      ...patch
+    } : l));
+    if (isPendingNew) {
+      const fullLead = {
+        ...makeBlankLead(),
+        ...patch,
+        id
+      };
+      sbWriteOrQueue({
+        table: "leads",
+        action: "insert",
+        row: {
+          id,
+          ...leadToRow(fullLead)
+        }
+      }).then(({
+        error
+      }) => {
+        if (error) {
+          window.alert("Could not save this lead: " + error.message);
+          setLeads(ls => ls.filter(l => l.id !== id));
+        } else {
+          showToast("Lead added.");
+        }
+      });
+    } else {
+      sbWriteOrQueue({
+        table: "leads",
+        action: "update",
+        row: partialLeadToRow(patch),
+        matchColumn: "id",
+        matchValue: id
+      }).then(({
+        error
+      }) => {
+        if (error) window.alert("Could not save changes to this lead: " + error.message);
+      });
+    }
     setJustCreatedId(cur => cur === id ? null : cur);
     setActiveLeadId(null);
   }
@@ -8273,8 +8522,10 @@ function LeadPipeline({
         text
       }]
     });
+    showToast("Note added.");
   }
   function deleteNote(id, noteId) {
+    if (!window.confirm("Delete this note? This can't be undone.")) return;
     const lead = leads.find(l => l.id === id);
     updateLeadNow(id, {
       interactions: (lead.interactions || []).filter(n => n.id !== noteId)
@@ -8516,7 +8767,6 @@ function LeadPipeline({
     currency: currency,
     rate: rate,
     onClose: () => setActiveLeadId(null),
-    onChange: updateLead,
     onAddNote: addNote,
     onDeleteNote: deleteNote,
     onDelete: deleteLead,
@@ -8525,7 +8775,8 @@ function LeadPipeline({
     onDuplicate: duplicateLead,
     isAdmin: isAdmin,
     isNewLead: justCreatedId === activeLead.id,
-    onSaveAndClose: saveAndCloseLead
+    onSaveAndClose: saveAndCloseLead,
+    onDiscardNew: () => discardNewLead(activeLead.id)
   }));
 }
 
@@ -8829,6 +9080,7 @@ function TeamAnalytics({
     if (revivable) {
       await restoreRep(revivable.id);
       setNewRepName("");
+      showToast(`${revivable.name} restored to the team.`);
       return;
     }
     if (activeRoster.some(r => r.name.toLowerCase() === name.toLowerCase())) {
@@ -8844,6 +9096,7 @@ function TeamAnalytics({
     };
     setReps(rs => [...rs, newRep]);
     setNewRepName("");
+    showToast(`${name} added.`);
     const {
       error
     } = await sbWriteOrQueue({
@@ -9671,6 +9924,7 @@ function BusinessUnits({
     setBusinessUnits(bs => [...bs, newBU]);
     setNewBUName("");
     setNewBUTarget("");
+    showToast(`${name} added.`);
     const {
       error
     } = await sbWriteOrQueue({
@@ -9837,6 +10091,7 @@ function BusinessUnits({
     setTimeout(() => setAllocJustSaved(false), 1800);
   }
   async function deleteAllocation(id) {
+    if (!window.confirm("Remove this quota allocation? This can't be undone.")) return;
     setRepTargets(ts => ts.filter(t => t.id !== id));
     const {
       error
@@ -10911,6 +11166,106 @@ function UserManagement({
     setRemovePassword("");
   }
   const sorted = profiles.slice().sort((a, b) => a.role === b.role ? a.name.localeCompare(b.name) : a.role === "Admin" ? -1 : 1);
+
+  // Linked Rep used to write to Supabase the instant a different rep was
+  // picked from the dropdown, with zero confirmation — this row now holds
+  // that selection as a local draft until an explicit Save (or Cancel).
+  function UserRow({
+    u
+  }) {
+    const [draftRep, setDraftRep] = useState(u.repName || "");
+    useEffect(() => {
+      setDraftRep(u.repName || "");
+    }, [u.repName]);
+    const [saving, setSaving] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
+    const repDirty = u.role === "Sales Rep" && draftRep !== (u.repName || "");
+    async function handleSaveRep() {
+      if (!repDirty || saving) return;
+      setSaving(true);
+      await updateUserRep(u, draftRep);
+      setSaving(false);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 1600);
+    }
+    function handleCancelRep() {
+      setDraftRep(u.repName || "");
+    }
+    return /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+      className: "cell-company"
+    }, u.name, u.id === currentUser.id ? /*#__PURE__*/React.createElement("span", {
+      className: "tag-muted"
+    }, "\xA0(you)") : null), /*#__PURE__*/React.createElement("td", null, u.email), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
+      className: "select role-select",
+      value: u.role,
+      onChange: e => openRoleChangeModal(u, e.target.value)
+    }, ROLES.map(r => /*#__PURE__*/React.createElement("option", {
+      key: r,
+      value: r
+    }, r)))), /*#__PURE__*/React.createElement("td", null, u.role === "Sales Rep" ? /*#__PURE__*/React.createElement("div", {
+      className: "stage-cell-edit"
+    }, /*#__PURE__*/React.createElement("select", {
+      className: "select",
+      value: draftRep,
+      onChange: e => setDraftRep(e.target.value)
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Unassigned"), reps.filter(r => !r.deletedAt || r.name === u.repName).map(r => /*#__PURE__*/React.createElement("option", {
+      key: r.id,
+      value: r.name
+    }, r.name, r.deletedAt ? " (deleted)" : ""))), justSaved && /*#__PURE__*/React.createElement("span", {
+      className: "bu-row-saved"
+    }, /*#__PURE__*/React.createElement(IconCheck, {
+      color: "var(--status-good)"
+    })), repDirty && !justSaved && /*#__PURE__*/React.createElement("span", {
+      className: "stage-cell-actions"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn success-ghost",
+      title: "Save linked rep",
+      onClick: handleSaveRep,
+      disabled: saving
+    }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+      className: "btn ghost bu-row-cancel",
+      title: "Discard change",
+      onClick: handleCancelRep,
+      disabled: saving
+    }, /*#__PURE__*/React.createElement(IconX, null)))) : /*#__PURE__*/React.createElement("span", {
+      className: "tag-muted"
+    }, "—")), /*#__PURE__*/React.createElement("td", null, u.isActive ? /*#__PURE__*/React.createElement("span", {
+      className: "role-badge",
+      style: {
+        background: "rgba(63,185,80,0.14)",
+        color: "#3fb950",
+        borderColor: "rgba(63,185,80,0.4)"
+      }
+    }, "Active") : /*#__PURE__*/React.createElement("span", {
+      className: "role-badge",
+      style: {
+        background: "rgba(251,88,88,0.14)",
+        color: "var(--status-critical)",
+        borderColor: "rgba(251,88,88,0.4)"
+      }
+    }, "Deactivated")), /*#__PURE__*/React.createElement("td", {
+      className: "cell-sub"
+    }, formatDateTime(u.lastLogin)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        display: "flex",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn danger-ghost",
+      title: "Send password reset email",
+      onClick: () => sendReset(u)
+    }, /*#__PURE__*/React.createElement(IconKey, null)), /*#__PURE__*/React.createElement("button", {
+      className: "btn danger-ghost",
+      title: u.isActive ? "Deactivate account (reversible)" : "Reactivate account",
+      onClick: () => toggleActive(u)
+    }, u.isActive ? /*#__PURE__*/React.createElement(IconTrash, null) : /*#__PURE__*/React.createElement(IconRestore, null)), /*#__PURE__*/React.createElement("button", {
+      className: "btn danger-solid",
+      title: "Remove account permanently",
+      onClick: () => openRemoveModal(u)
+    }, /*#__PURE__*/React.createElement(IconTrashForever, null))));
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
@@ -10942,64 +11297,10 @@ function UserManagement({
     className: "chart-title"
   }, "Team Accounts")), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Name"), /*#__PURE__*/React.createElement("th", null, "Email"), /*#__PURE__*/React.createElement("th", null, "Role"), /*#__PURE__*/React.createElement("th", null, "Linked Rep"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Last Login"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, sorted.map(u => /*#__PURE__*/React.createElement("tr", {
-    key: u.id
-  }, /*#__PURE__*/React.createElement("td", {
-    className: "cell-company"
-  }, u.name, u.id === currentUser.id ? /*#__PURE__*/React.createElement("span", {
-    className: "tag-muted"
-  }, "\xA0(you)") : null), /*#__PURE__*/React.createElement("td", null, u.email), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
-    className: "select role-select",
-    value: u.role,
-    onChange: e => openRoleChangeModal(u, e.target.value)
-  }, ROLES.map(r => /*#__PURE__*/React.createElement("option", {
-    key: r,
-    value: r
-  }, r)))), /*#__PURE__*/React.createElement("td", null, u.role === "Sales Rep" ? /*#__PURE__*/React.createElement("select", {
-    className: "select",
-    value: u.repName || "",
-    onChange: e => updateUserRep(u, e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Unassigned"), reps.filter(r => !r.deletedAt || r.name === u.repName).map(r => /*#__PURE__*/React.createElement("option", {
-    key: r.id,
-    value: r.name
-  }, r.name, r.deletedAt ? " (deleted)" : ""))) : /*#__PURE__*/React.createElement("span", {
-    className: "tag-muted"
-  }, "—")), /*#__PURE__*/React.createElement("td", null, u.isActive ? /*#__PURE__*/React.createElement("span", {
-    className: "role-badge",
-    style: {
-      background: "rgba(63,185,80,0.14)",
-      color: "#3fb950",
-      borderColor: "rgba(63,185,80,0.4)"
-    }
-  }, "Active") : /*#__PURE__*/React.createElement("span", {
-    className: "role-badge",
-    style: {
-      background: "rgba(251,88,88,0.14)",
-      color: "var(--status-critical)",
-      borderColor: "rgba(251,88,88,0.4)"
-    }
-  }, "Deactivated")), /*#__PURE__*/React.createElement("td", {
-    className: "cell-sub"
-  }, formatDateTime(u.lastLogin)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      display: "flex",
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn danger-ghost",
-    title: "Send password reset email",
-    onClick: () => sendReset(u)
-  }, /*#__PURE__*/React.createElement(IconKey, null)), /*#__PURE__*/React.createElement("button", {
-    className: "btn danger-ghost",
-    title: u.isActive ? "Deactivate account (reversible)" : "Reactivate account",
-    onClick: () => toggleActive(u)
-  }, u.isActive ? /*#__PURE__*/React.createElement(IconTrash, null) : /*#__PURE__*/React.createElement(IconRestore, null)), /*#__PURE__*/React.createElement("button", {
-    className: "btn danger-solid",
-    title: "Remove account permanently",
-    onClick: () => openRemoveModal(u)
-  }, /*#__PURE__*/React.createElement(IconTrashForever, null))))))))), removeTarget && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Name"), /*#__PURE__*/React.createElement("th", null, "Email"), /*#__PURE__*/React.createElement("th", null, "Role"), /*#__PURE__*/React.createElement("th", null, "Linked Rep"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Last Login"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, sorted.map(u => /*#__PURE__*/React.createElement(UserRow, {
+    key: u.id,
+    u: u
+  })))))), removeTarget && /*#__PURE__*/React.createElement("div", {
     className: "drawer-overlay confirm-modal-overlay",
     onClick: closeRemoveModal
   }, /*#__PURE__*/React.createElement("div", {
@@ -12006,6 +12307,44 @@ function Dashboard({
   const stageFunnelData = computeStageFunnel(scopedLeads);
   const reasonLostData = computeReasonLostBreakdown(scopedLeads);
   const coverageColor = pipelineCoverageColor(isFinite(pipelineCoverageRatio) ? pipelineCoverageRatio : 3);
+
+  // Rep Performance vs. Target -- the same quota-attainment cards from the
+  // Business Units & Targets tab, surfaced here too so an Admin can see every
+  // rep's monthly and annual quota progress right on the Executive Dashboard
+  // instead of having to switch tabs. Only shown on the full-team view (mirrors
+  // showTeamBreakdown below) -- a rep scoped to themself already sees their
+  // own progress in the "Monthly/Annual Target Progress" KPI card above.
+  // Monthly figures follow the toolbar's month anchor, annual figures follow
+  // its year anchor -- same split the Team Analytics / My Performance view
+  // uses -- so both are always visible regardless of the Monthly/Yearly toggle.
+  const repPerfMonthYear = Number(timeframe.monthAnchor.slice(0, 4));
+  const repPerfMonth = Number(timeframe.monthAnchor.slice(5, 7));
+  const repPerfYear = Number(timeframe.yearAnchor) || new Date().getFullYear();
+  const repPerfMonthlyStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfMonthYear, repPerfMonth, null), [reps, repTargets, leads, repPerfMonthYear, repPerfMonth]);
+  const repPerfAnnualStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfYear, null, null), [reps, repTargets, leads, repPerfYear]);
+  const repPerfNames = Array.from(new Set([...repPerfMonthlyStats.map(s => s.rep.name), ...repPerfAnnualStats.map(s => s.rep.name)]));
+  const repPerfStats = repPerfNames.map(name => {
+    const rep = reps.find(r => r.name === name);
+    const monthly = repPerfMonthlyStats.find(s => s.rep.name === name) || {
+      target: 0,
+      actual: 0,
+      remaining: 0,
+      pct: 0
+    };
+    const annual = repPerfAnnualStats.find(s => s.rep.name === name) || {
+      target: 0,
+      actual: 0,
+      remaining: 0,
+      pct: 0
+    };
+    return {
+      rep,
+      monthly,
+      annual,
+      monthLabel: MONTH_NAMES[repPerfMonth - 1],
+      year: repPerfYear
+    };
+  }).filter(s => s.rep);
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
@@ -12137,7 +12476,33 @@ function Dashboard({
     sub: "Closed-won revenue by sales rep (full team)",
     data: revenueByRep,
     formatValue: fmtCompact
-  })), /*#__PURE__*/React.createElement("div", {
+  })), showTeamBreakdown && /*#__PURE__*/React.createElement("div", {
+    className: "card",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Rep Performance vs. Target")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "How much further each rep needs to go to hit their monthly and annual quota."), repPerfStats.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "empty-feed",
+    style: {
+      marginTop: 12
+    }
+  }, "No quota allocated yet — set one up in Business Units & Targets.") : /*#__PURE__*/React.createElement("div", {
+    className: "leaderboard-grid",
+    style: {
+      marginTop: 12
+    }
+  }, repPerfStats.map(s => /*#__PURE__*/React.createElement(RepQuotaCard, {
+    key: s.rep.id,
+    stat: s,
+    currency: currency,
+    rate: rate
+  })))), /*#__PURE__*/React.createElement("div", {
     className: "charts-grid",
     style: {
       marginTop: 16
@@ -12313,19 +12678,103 @@ function ProductivityTable({
   showRep,
   businessUnits
 }) {
-  const sorted = log.slice().sort((a, b) => a.date < b.date ? 1 : -1);
+  // A self-contained filter bar, independent of the page-wide Rep/Business
+  // Unit scope above -- lets you narrow the Activity Log itself (by rep,
+  // business unit, date range, or a free-text search) without changing what
+  // every other chart on the tab is scoped to. Totals in the footer always
+  // reflect whatever's currently filtered, not the full log.
+  const [search, setSearch] = useState("");
+  const [filterRep, setFilterRep] = useState("All");
+  const [filterBU, setFilterBU] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return log.filter(r => {
+      if (filterRep !== "All" && r.rep !== filterRep) return false;
+      if (filterBU !== "All" && (r.businessUnit || "") !== filterBU) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      if (q && !`${r.rep || ""} ${r.businessUnit || ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [log, search, filterRep, filterBU, dateFrom, dateTo]);
+  const sorted = filtered.slice().sort((a, b) => a.date < b.date ? 1 : -1);
   const totalCalls = sorted.reduce((s, r) => s + (r.calls || 0), 0);
   const totalDemos = sorted.reduce((s, r) => s + (r.demos || 0), 0);
   const totalProposals = sorted.reduce((s, r) => s + (r.proposals || 0), 0);
   const avgScore = sorted.length > 0 ? Math.round(sorted.reduce((s, r) => s + (r.score || 0), 0) / sorted.length) : 0;
   const colCount = 7 + (showRep ? 1 : 0);
+  const filtersActive = search.trim() !== "" || filterRep !== "All" || filterBU !== "All" || dateFrom !== "" || dateTo !== "";
+  function clearFilters() {
+    setSearch("");
+    setFilterRep("All");
+    setFilterBU("All");
+    setDateFrom("");
+    setDateTo("");
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-title"
-  }, "Activity Log")), /*#__PURE__*/React.createElement("div", {
+  }, "Activity Log")), log.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "filters-bar",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "search-field"
+  }, /*#__PURE__*/React.createElement(IconSearch, null), /*#__PURE__*/React.createElement("input", {
+    className: "input search-input",
+    placeholder: "Search by rep or business unit…",
+    value: search,
+    onChange: e => setSearch(e.target.value)
+  })), showRep && /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: filterRep,
+    onChange: e => setFilterRep(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "All"
+  }, "All Reps"), reps.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r.id,
+    value: r.name
+  }, r.name))), /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, filterBU !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: filterBU
+  }), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: filterBU,
+    onChange: e => setFilterBU(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "All"
+  }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name)))), /*#__PURE__*/React.createElement("input", {
+    className: "input timeframe-anchor",
+    type: "date",
+    value: dateFrom,
+    onChange: e => setDateFrom(e.target.value),
+    title: "From date"
+  }), /*#__PURE__*/React.createElement("input", {
+    className: "input timeframe-anchor",
+    type: "date",
+    value: dateTo,
+    onChange: e => setDateTo(e.target.value),
+    title: "To date"
+  }), filtersActive && /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: clearFilters
+  }, "Clear Filters")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "Showing ", sorted.length, " of ", log.length, " entr", log.length === 1 ? "y" : "ies")), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap"
   }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Date"), showRep && /*#__PURE__*/React.createElement("th", null, "Rep"), /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Calls"), /*#__PURE__*/React.createElement("th", null, "Demos"), /*#__PURE__*/React.createElement("th", null, "Proposals"), /*#__PURE__*/React.createElement("th", null, "Score"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, sorted.map(r => /*#__PURE__*/React.createElement("tr", {
     key: r.id
@@ -12353,7 +12802,7 @@ function ProductivityTable({
   }, /*#__PURE__*/React.createElement(IconTrash, null))))), sorted.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: colCount,
     className: "empty-feed"
-  }, "No activity logged yet."))), sorted.length > 0 && /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
+  }, log.length === 0 ? "No activity logged yet." : "No entries match your filters."))), sorted.length > 0 && /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", {
     className: "log-totals-row"
   }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "Total")), showRep && /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, totalCalls)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, totalDemos)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, totalProposals)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
     className: "score-badge",
@@ -12396,6 +12845,7 @@ function ProductivityLog({
       score: entry.score
     };
     setLog(l => [...l, newEntry]);
+    showToast("Activity entry added.");
     const {
       error
     } = await sbWriteOrQueue({
@@ -12418,6 +12868,7 @@ function ProductivityLog({
     }
   }
   function deleteEntry(id) {
+    if (!window.confirm("Delete this activity log entry? This can't be undone.")) return;
     setLog(l => l.filter(r => r.id !== id));
     sbWriteOrQueue({
       table: "productivity_log",
@@ -13383,7 +13834,7 @@ function App() {
   const activeReps = reps.filter(r => !r.deletedAt);
   return /*#__PURE__*/React.createElement("div", {
     className: "app-shell"
-  }, /*#__PURE__*/React.createElement(ProfileFab, {
+  }, /*#__PURE__*/React.createElement(ToastHost, null), /*#__PURE__*/React.createElement(ProfileFab, {
     user: currentUser,
     isAdmin: isAdmin,
     setTab: setTab
