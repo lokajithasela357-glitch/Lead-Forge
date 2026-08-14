@@ -592,6 +592,9 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .btn.ghost:hover{ border-color:var(--border-strong); color:var(--text-primary); transform:none; filter:none; }
   .btn.danger-ghost{ background:transparent; border:1px solid transparent; color:var(--text-muted); padding:6px; box-shadow:none; }
   .btn.danger-ghost:hover{ color:var(--status-critical); transform:none; filter:none; }
+  .btn.success-ghost{ background:transparent; border:1px solid rgba(47,214,108,0.45); color:var(--status-good); padding:6px; box-shadow:none; }
+  .btn.success-ghost:hover{ background:rgba(47,214,108,0.14); transform:none; filter:none; }
+  .btn.success-ghost:disabled{ opacity:.4; }
 
   /* Tables */
   .table-wrap{ overflow-x:auto; }
@@ -843,6 +846,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .back-btn:hover{ background:var(--surface-2); border-color:var(--border-strong); color:var(--text-primary); transform:translateX(-1px); }
   .back-btn svg{ width:16px; height:16px; }
+  .refresh-btn{
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+    width:34px; height:34px; border-radius:10px; cursor:pointer; font-family:inherit;
+    background:var(--surface-1); border:1px solid var(--border); color:var(--text-secondary);
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .refresh-btn:hover:not(:disabled){ background:var(--surface-2); border-color:var(--border-strong); color:var(--text-primary); }
+  .refresh-btn:disabled{ cursor:default; opacity:.75; }
+  .refresh-btn svg{ width:15px; height:15px; }
+  .refresh-btn.spinning svg{ animation:messageAttachSpin 0.8s linear infinite; }
   .header-select{ min-width:150px; }
   .timeframe-group{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .timeframe-anchor{ min-width:118px; }
@@ -875,6 +888,25 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     width:9px; height:9px; border-radius:50%; flex:0 0 auto;
     box-shadow:0 0 6px -1px currentColor;
   }
+
+  /* Business Units table — a colored accent strip per row (matching that
+     BU's own color everywhere else in the app) plus the explicit
+     save/cancel/"Saved" flow for its editable name + target cells. */
+  .bu-table-row td:first-child{ box-shadow:inset 3px 0 0 0 var(--bu-accent, #8b8a9a); }
+  .bu-table-row.bu-row-dirty{ background:rgba(0,136,255,0.045); }
+  .bu-row-actions{ display:flex; align-items:center; gap:6px; justify-content:flex-end; flex-wrap:nowrap; }
+  .bu-row-cancel svg{ width:14px; height:14px; }
+  .bu-row-saved{
+    display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700;
+    color:var(--status-good); white-space:nowrap; animation:buRowSavedFade 1.6s ease forwards;
+  }
+  @keyframes buRowSavedFade{
+    0%{ opacity:0; transform:translateY(2px); }
+    12%{ opacity:1; transform:translateY(0); }
+    78%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+  .alloc-save-row{ display:flex; align-items:center; gap:12px; }
 
   /* Filters bar (Lead Pipeline) */
   .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; }
@@ -5664,6 +5696,29 @@ function formatFileSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+// Turns rows of plain values into a downloaded .csv file — no external
+// library needed, and a .csv opens directly in Excel/Sheets/Numbers like any
+// other spreadsheet. `rows` is an array of arrays; the first row is treated
+// as the header. Commas/quotes/newlines inside a cell are quoted properly so
+// a business unit or rep name with a comma in it can't corrupt the columns.
+function downloadCSV(filename, rows) {
+  const csv = rows.map(row => row.map(cell => {
+    const s = cell === null || cell === undefined ? "" : String(cell);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(",")).join("\r\n");
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Shared attach-a-file control used by both composers (announcements and a
 // private thread reply) — TWO ways to pick something to send, both landing
 // in the same single attachment slot on the message: a generic "Attach
@@ -6202,11 +6257,14 @@ function MessageCenter({
     className: "message-reply-box"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea message-compose-input",
-    placeholder: `Message ${selectedContact}…`,
+    placeholder: `Message ${selectedContact}… (Enter to send, Shift+Enter for a new line)`,
     value: threadBody,
     onChange: e => setThreadBody(e.target.value),
     onKeyDown: e => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendDirectMessage();
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendDirectMessage();
+      }
     }
   }), /*#__PURE__*/React.createElement(MessageAttachControl, {
     attachment: threadAttachment,
@@ -6229,11 +6287,14 @@ function MessageCenter({
     className: "message-compose"
   }, /*#__PURE__*/React.createElement("textarea", {
     className: "textarea message-compose-input",
-    placeholder: "Write an announcement to your whole team…",
+    placeholder: "Write an announcement to your whole team… (Enter to send, Shift+Enter for a new line)",
     value: announceBody,
     onChange: e => setAnnounceBody(e.target.value),
     onKeyDown: e => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendAnnouncement();
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendAnnouncement();
+      }
     }
   }), /*#__PURE__*/React.createElement(MessageAttachControl, {
     attachment: announceAttachment,
@@ -6859,7 +6920,12 @@ function GroupedBarChartCard({
   const groupGap = 22;
   const groupW = (plotW - groupGap * (n - 1)) / n;
   const barGap = 4;
-  const barW = (groupW - barGap) / 2;
+  // Generalized to however many series each group actually carries (2 for
+  // quota-vs-actual, 3 for target/allocated/achieved, etc.) rather than
+  // assuming exactly 2 — the bar width and per-series offset both scale to
+  // however many bars need to fit side by side in one group.
+  const seriesCount = Math.max(1, ...data.map(d => d.values.length), seriesLabels.length);
+  const barW = (groupW - barGap * (seriesCount - 1)) / seriesCount;
   const gridLines = [0, 1, 2, 3, 4].map(i => padT + plotH / 4 * i);
   function handleMove(e, groupIdx, seriesIdx) {
     const rect = wrapRef.current.getBoundingClientRect();
@@ -9193,28 +9259,116 @@ function TeamAnalytics({
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-// A Business Unit's editable annual-target cell — kept as its own small
-// component (rather than the inline defaultValue+remount-key trick used
-// before) so it can hold local text while typing and still comma-format on
-// blur via MoneyAmountInput, while still resetting to the BU's real value
-// whenever the target changes elsewhere or the display currency/rate flips.
-function BUTargetInput({
+// One row of the Business Units table — name + annual target used to save
+// silently the instant you clicked away from either field (a stray Tab or
+// an accidental click elsewhere would quietly write a half-finished edit).
+// Now both fields are held as a local draft and only ever committed when
+// Save is explicitly clicked (or Enter is pressed) — a "Cancel" undoes the
+// draft back to the saved values, and a brief "Saved" confirmation replaces
+// the buttons for a moment so it's obvious the write actually went through,
+// instead of nothing visibly happening at all.
+function BURow({
   bu,
   currency,
   rate,
-  onCommit
+  onRename,
+  onRetarget,
+  onDelete,
+  fmt,
+  allocated,
+  allocPct,
+  revenueClosed,
+  pipelineValue,
+  pct
 }) {
-  const displayValue = () => String(Math.round(toDisplayAmount(bu.annualTarget, currency, rate)));
-  const [val, setVal] = useState(displayValue);
+  const displayTarget = () => String(Math.round(toDisplayAmount(bu.annualTarget, currency, rate)));
+  const [draftName, setDraftName] = useState(bu.name);
+  const [draftTarget, setDraftTarget] = useState(displayTarget);
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   useEffect(() => {
-    setVal(displayValue());
+    setDraftName(bu.name);
+  }, [bu.name]);
+  useEffect(() => {
+    setDraftTarget(displayTarget());
   }, [bu.annualTarget, currency, rate]);
-  return /*#__PURE__*/React.createElement(MoneyAmountInput, {
+  const nameDirty = draftName.trim() !== "" && draftName.trim() !== bu.name;
+  const targetDirty = Number(draftTarget || 0) !== Math.round(toDisplayAmount(bu.annualTarget, currency, rate));
+  const dirty = nameDirty || targetDirty;
+  async function handleSave() {
+    if (!dirty || saving) return;
+    setSaving(true);
+    const tasks = [];
+    if (nameDirty) tasks.push(onRename(draftName));
+    if (targetDirty) tasks.push(onRetarget(draftTarget));
+    await Promise.all(tasks);
+    setSaving(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
+  }
+  function handleCancel() {
+    setDraftName(bu.name);
+    setDraftTarget(displayTarget());
+  }
+  function handleFieldKeyDown(e) {
+    if (e.key === "Enter") handleSave();else if (e.key === "Escape") handleCancel();
+  }
+  return /*#__PURE__*/React.createElement("tr", {
+    className: "bu-table-row" + (dirty ? " bu-row-dirty" : ""),
+    style: {
+      "--bu-accent": bu.color || "#8b8a9a"
+    }
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "bu-select-dot",
+    style: {
+      background: bu.color || "#8b8a9a"
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    className: "input bu-name-input",
+    value: draftName,
+    onChange: e => setDraftName(e.target.value),
+    onKeyDown: handleFieldKeyDown
+  }))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(MoneyAmountInput, {
     className: "input target-amount-input",
-    value: val,
-    onChange: setVal,
-    onCommit: () => onCommit(val)
-  });
+    value: draftTarget,
+    onChange: setDraftTarget,
+    onKeyDown: handleFieldKeyDown
+  })), /*#__PURE__*/React.createElement("td", {
+    style: {
+      minWidth: 150
+    }
+  }, /*#__PURE__*/React.createElement("div", null, fmt(allocated)), /*#__PURE__*/React.createElement(TargetProgressBar, {
+    pct: allocPct,
+    label: `${allocPct}% of this BU's annual target allocated to reps`
+  })), /*#__PURE__*/React.createElement("td", null, fmt(revenueClosed)), /*#__PURE__*/React.createElement("td", null, fmt(pipelineValue)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      minWidth: 150
+    }
+  }, /*#__PURE__*/React.createElement(TargetProgressBar, {
+    pct: pct
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "bu-row-actions"
+  }, justSaved && /*#__PURE__*/React.createElement("span", {
+    className: "bu-row-saved"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), " Saved"), dirty && !justSaved && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "btn success-ghost",
+    title: "Save changes",
+    onClick: handleSave,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost bu-row-cancel",
+    title: "Discard changes",
+    onClick: handleCancel,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconX, null))), /*#__PURE__*/React.createElement("button", {
+    className: "btn danger-ghost",
+    title: "Delete Business Unit",
+    onClick: () => onDelete(bu)
+  }, /*#__PURE__*/React.createElement(IconTrash, null)))));
 }
 function RepQuotaCard({
   stat,
@@ -9364,6 +9518,7 @@ function BusinessUnits({
   const thisMonth = now.getMonth() + 1;
   const [newBUName, setNewBUName] = useState("");
   const [newBUTarget, setNewBUTarget] = useState("");
+  const [buSearch, setBuSearch] = useState("");
   const [trackerYear, setTrackerYear] = useState(thisYear);
   const [trackerMonth, setTrackerMonth] = useState(thisMonth);
   const [trackerBU, setTrackerBU] = useState("All");
@@ -9372,6 +9527,10 @@ function BusinessUnits({
   const [allocYear, setAllocYear] = useState(thisYear);
   const [allocMonth, setAllocMonth] = useState(thisMonth);
   const [allocAmount, setAllocAmount] = useState("");
+  // Brief "Saved" confirmation next to the Save Allocation button — the
+  // field clearing on its own wasn't a clear enough signal that the write
+  // actually went through.
+  const [allocJustSaved, setAllocJustSaved] = useState(false);
   // "monthly" allocates one month's row (unchanged behavior). "annual"
   // takes a single yearly figure and splits it evenly across all 12 months
   // of that year — this is what actually fixes an allocation that used to
@@ -9573,6 +9732,8 @@ function BusinessUnits({
       await Promise.all(amounts.map((amt, i) => upsertOneAllocation(allocBU, allocRep, allocYear, i + 1, amt)));
     }
     setAllocAmount("");
+    setAllocJustSaved(true);
+    setTimeout(() => setAllocJustSaved(false), 1800);
   }
   async function deleteAllocation(id) {
     setRepTargets(ts => ts.filter(t => t.id !== id));
@@ -9604,6 +9765,44 @@ function BusinessUnits({
     });
     return map;
   }, [repTargets, trackerYear]);
+
+  // Search narrows both the editable table AND the comparison chart below it
+  // to the same set of business units — handy once there are more than a
+  // handful and you just want to check one.
+  const filteredBuStats = useMemo(() => {
+    const q = buSearch.trim().toLowerCase();
+    if (!q) return buStats;
+    return buStats.filter(({
+      bu
+    }) => bu.name.toLowerCase().includes(q));
+  }, [buStats, buSearch]);
+
+  // Target vs. Allocated vs. Achieved, side by side per business unit — the
+  // table above has all three numbers but as separate cells/rows; this is
+  // the same three figures redrawn as one picture so a gap between them
+  // (target far ahead of what's actually allocated to reps, or allocated far
+  // ahead of what's been closed) is visible at a glance instead of requiring
+  // you to mentally compare columns.
+  const buComparisonChartData = filteredBuStats.map(({
+    bu,
+    revenueClosed
+  }) => ({
+    label: bu.name,
+    values: [bu.annualTarget, allocatedByBU[bu.name] || 0, revenueClosed]
+  }));
+  function exportBusinessUnitsCSV() {
+    const toDisp = v => Math.round(toDisplayAmount(v, currency, rate));
+    const rows = [["Business Unit", `Annual Target (${currency})`, `Allocated to Reps (${currency})`, `Revenue Closed ${trackerYear} (${currency})`, `Pipeline Value (${currency})`, "Progress %"]];
+    filteredBuStats.forEach(({
+      bu,
+      revenueClosed,
+      pipelineValue,
+      pct
+    }) => {
+      rows.push([bu.name, toDisp(bu.annualTarget), toDisp(allocatedByBU[bu.name] || 0), toDisp(revenueClosed), toDisp(pipelineValue), pct]);
+    });
+    downloadCSV(`business-units-${trackerYear}.csv`, rows);
+  }
   const repsInScope = trackerBU === "All" ? reps : reps; // rep roster doesn't change by BU; the BU filter narrows targets/actuals instead
   const monthlyStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, leads, trackerYear, trackerMonth, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, leads, trackerYear, trackerMonth, trackerBU]);
   const annualStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, leads, trackerYear, null, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, leads, trackerYear, trackerBU]);
@@ -9652,6 +9851,17 @@ function BusinessUnits({
     setAllocFilterYear("All");
     setAllocFilterMonth("All");
     setAllocSearch("");
+  }
+  function exportAllocationsCSV() {
+    // Exports exactly what's currently on screen -- if a filter/search is
+    // narrowing the table, the export matches it, so "export the SMB
+    // allocations for 2026" is just: filter, then export.
+    const toDisp = v => Math.round(toDisplayAmount(v, currency, rate));
+    const rows = [["Business Unit", "Rep", "Month", "Year", `Monthly Target (${currency})`]];
+    filteredAllocations.forEach(t => {
+      rows.push([t.businessUnit, t.repName, MONTH_NAMES[t.month - 1], t.year, toDisp(t.targetAmount)]);
+    });
+    downloadCSV("rep-quota-allocations.csv", rows);
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
@@ -9710,7 +9920,12 @@ function BusinessUnits({
     className: "chart-head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "chart-title"
-  }, "Business Units")), /*#__PURE__*/React.createElement("div", {
+  }, "Business Units"), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: exportBusinessUnitsCSV,
+    disabled: !filteredBuStats.length,
+    title: "Export this table to a .csv spreadsheet"
+  }, /*#__PURE__*/React.createElement(IconDownload, null), "\xA0 Export CSV")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub"
   }, "Add, rename, or retarget a Business Unit. Deleting one also removes its quota allocations."), /*#__PURE__*/React.createElement("div", {
     className: "panel-actions add-rep-form",
@@ -9737,9 +9952,20 @@ function BusinessUnits({
   }), /*#__PURE__*/React.createElement("button", {
     className: "btn",
     onClick: addBU
-  }, /*#__PURE__*/React.createElement(IconPlus, null), "\xA0 Add Business Unit")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconPlus, null), "\xA0 Add Business Unit")), businessUnits.length > 4 && /*#__PURE__*/React.createElement("div", {
+    className: "search-field",
+    style: {
+      marginBottom: 14,
+      maxWidth: 340
+    }
+  }, /*#__PURE__*/React.createElement(IconSearch, null), /*#__PURE__*/React.createElement("input", {
+    className: "input search-input",
+    placeholder: "Search business units by name…",
+    value: buSearch,
+    onChange: e => setBuSearch(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Annual Target"), /*#__PURE__*/React.createElement("th", null, "Allocated to Reps (", trackerYear, ")"), /*#__PURE__*/React.createElement("th", null, "Revenue Closed (", trackerYear, ")"), /*#__PURE__*/React.createElement("th", null, "Pipeline Value"), /*#__PURE__*/React.createElement("th", null, "Progress"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, buStats.map(({
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Annual Target"), /*#__PURE__*/React.createElement("th", null, "Allocated to Reps (", trackerYear, ")"), /*#__PURE__*/React.createElement("th", null, "Revenue Closed (", trackerYear, ")"), /*#__PURE__*/React.createElement("th", null, "Pipeline Value"), /*#__PURE__*/React.createElement("th", null, "Progress"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filteredBuStats.map(({
     bu,
     revenueClosed,
     pipelineValue,
@@ -9747,48 +9973,38 @@ function BusinessUnits({
   }) => {
     const allocated = allocatedByBU[bu.name] || 0;
     const allocPct = bu.annualTarget > 0 ? Math.round(allocated / bu.annualTarget * 100) : allocated > 0 ? 100 : 0;
-    return /*#__PURE__*/React.createElement("tr", {
-      key: bu.id
-    }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
-      className: "bu-select-wrap"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "bu-select-dot",
-      style: {
-        background: bu.color || "#8b8a9a"
-      }
-    }), /*#__PURE__*/React.createElement("input", {
-      className: "input bu-name-input",
-      defaultValue: bu.name,
-      onBlur: e => renameBU(bu, e.target.value)
-    }))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUTargetInput, {
+    return /*#__PURE__*/React.createElement(BURow, {
+      key: bu.id,
       bu: bu,
       currency: currency,
       rate: rate,
-      onCommit: v => updateBUTarget(bu, v)
-    })), /*#__PURE__*/React.createElement("td", {
-      style: {
-        minWidth: 150
-      }
-    }, /*#__PURE__*/React.createElement("div", null, fmt(allocated)), /*#__PURE__*/React.createElement(TargetProgressBar, {
-      pct: allocPct,
-      label: `${allocPct}% of this BU's annual target allocated to reps`
-    })), /*#__PURE__*/React.createElement("td", null, fmt(revenueClosed)), /*#__PURE__*/React.createElement("td", null, fmt(pipelineValue)), /*#__PURE__*/React.createElement("td", {
-      style: {
-        minWidth: 150
-      }
-    }, /*#__PURE__*/React.createElement(TargetProgressBar, {
+      onRename: name => renameBU(bu, name),
+      onRetarget: v => updateBUTarget(bu, v),
+      onDelete: deleteBU,
+      fmt: fmt,
+      allocated: allocated,
+      allocPct: allocPct,
+      revenueClosed: revenueClosed,
+      pipelineValue: pipelineValue,
       pct: pct
-    })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-      className: "btn danger-ghost",
-      title: "Delete Business Unit",
-      onClick: () => deleteBU(bu)
-    }, /*#__PURE__*/React.createElement(IconTrash, null))));
+    });
   }), buStats.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: 7,
     className: "empty-feed"
-  }, "No Business Units yet — add one above.")))))), /*#__PURE__*/React.createElement("div", {
+  }, "No Business Units yet — add one above.")), buStats.length > 0 && filteredBuStats.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 7,
+    className: "empty-feed"
+  }, "No business units match \"", buSearch, "\".")))))), /*#__PURE__*/React.createElement(GroupedBarChartCard, {
+    title: "Target vs. Allocated vs. Achieved",
+    sub: `Annual target, how much of it is allocated to reps, and revenue actually closed in ${trackerYear} — by business unit`,
+    data: buComparisonChartData,
+    seriesLabels: ["Annual Target", "Allocated to Reps", "Revenue Closed"],
+    seriesColors: ["#8b8a9a", "#0088FF", "#2fd66c"],
+    formatValue: fmtCompact
+  }), /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
+      marginTop: 16,
       marginBottom: 16
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -9865,14 +10081,20 @@ function BusinessUnits({
     style: {
       marginTop: 8
     }
-  }, "This splits ", CURRENCY_SYMBOL[currency] || "$", (Number(allocAmount) || 0).toLocaleString("en-US"), " evenly across all 12 months of ", allocYear, " for ", allocRep || "this rep", " — replacing any existing monthly allocations already set for that rep, BU, and year."), /*#__PURE__*/React.createElement("button", {
-    className: "btn",
+  }, "This splits ", CURRENCY_SYMBOL[currency] || "$", (Number(allocAmount) || 0).toLocaleString("en-US"), " evenly across all 12 months of ", allocYear, " for ", allocRep || "this rep", " — replacing any existing monthly allocations already set for that rep, BU, and year."), /*#__PURE__*/React.createElement("div", {
+    className: "alloc-save-row",
     style: {
       marginTop: 14
-    },
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
     onClick: saveAllocation,
     disabled: !businessUnits.length || !reps.length
-  }, /*#__PURE__*/React.createElement(IconPlus, null), "\xA0 Save Allocation"), (!businessUnits.length || !reps.length) && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconPlus, null), "\xA0 Save Allocation"), allocJustSaved && /*#__PURE__*/React.createElement("span", {
+    className: "bu-row-saved"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), " Saved")), (!businessUnits.length || !reps.length) && /*#__PURE__*/React.createElement("div", {
     className: "panel-alert",
     style: {
       marginTop: 8
@@ -9936,7 +10158,12 @@ function BusinessUnits({
   }, y))), allocFiltersActive && /*#__PURE__*/React.createElement("button", {
     className: "btn ghost",
     onClick: clearAllocFilters
-  }, "Clear Filters")), /*#__PURE__*/React.createElement("div", {
+  }, "Clear Filters"), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: exportAllocationsCSV,
+    disabled: !filteredAllocations.length,
+    title: "Export the allocations shown below to a .csv spreadsheet"
+  }, /*#__PURE__*/React.createElement(IconDownload, null), "\xA0 Export CSV")), /*#__PURE__*/React.createElement("div", {
     className: "chart-sub"
   }, "Showing ", filteredAllocations.length, " of ", repTargets.length, " allocation", repTargets.length === 1 ? "" : "s"), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap"
@@ -12419,6 +12646,11 @@ function App() {
   }, [currentUser]);
   const [authLoading, setAuthLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
+  // A manual "Refresh" button re-fetches everything loadAllData() does, but
+  // must NOT flip dataLoading -- that swaps the entire screen for a "Loading
+  // your workspace…" placeholder, which would be jarring for a button meant
+  // to feel like a quick, in-place top-up rather than a full reload.
+  const [refreshing, setRefreshing] = useState(false);
   const [authMode, setAuthMode] = useState(isRecoveryRedirect() ? "recovery" : null);
   const [selectedRep, setSelectedRep] = useState("All");
   const [timeframe, setTimeframe] = useState({
@@ -12511,8 +12743,14 @@ function App() {
     })));
     return true;
   }
-  async function loadAllData() {
-    setDataLoading(true);
+
+  // `silent` is what the manual Refresh button uses -- same fetch-everything
+  // logic as a normal load, but toggles the small `refreshing` flag instead
+  // of `dataLoading`, so the screen doesn't blank out to "Loading your
+  // workspace…" for what's meant to be a quick, in-place top-up.
+  async function loadAllData(opts) {
+    const silent = !!(opts && opts.silent);
+    if (silent) setRefreshing(true);else setDataLoading(true);
     // No connection at all — don't wait on a request that can't succeed;
     // fall straight back to whatever this device last saw, so the app still
     // opens. Once we're back online the queue flush + a manual refresh will
@@ -12527,12 +12765,13 @@ function App() {
         setRepTargets(cache.repTargets || []);
         setMessages(cache.messages || []);
       }
-      setDataLoading(false);
+      if (silent) setRefreshing(false);else setDataLoading(false);
       return;
     }
     // Wrapped so a request that throws outright (instead of resolving with a
-    // clean {error}) can't leave dataLoading stuck true forever — that would
-    // otherwise show "Loading your workspace…" with no way out.
+    // clean {error}) can't leave dataLoading/refreshing stuck true forever —
+    // that would otherwise show "Loading your workspace…" (or a
+    // never-stopping Refresh spinner) with no way out.
     try {
       const [leadsRes, repsRes, logRes, buRes, targetsRes, messagesRes] = await Promise.all([sb.from("leads").select("*").order("created_at", {
         ascending: false
@@ -12578,8 +12817,19 @@ function App() {
         setMessages(cache.messages || []);
       }
     } finally {
-      setDataLoading(false);
+      if (silent) setRefreshing(false);else setDataLoading(false);
     }
+  }
+
+  // The manual Refresh button — re-pulls everything (leads, reps, activity
+  // log, business units, rep targets, messages, and the profiles roster)
+  // straight from Supabase on demand, for whenever someone wants the latest
+  // without waiting on realtime or reloading the whole page.
+  async function refreshData() {
+    if (refreshing) return;
+    await Promise.all([loadProfilesList(), loadAllData({
+      silent: true
+    })]);
   }
   async function hydrateFromSession(session) {
     if (!session || !session.user) return;
@@ -13093,6 +13343,13 @@ function App() {
     rate: rate,
     setRate: setRate
   }), /*#__PURE__*/React.createElement("span", {
+    className: "toolbar-divider"
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "refresh-btn" + (refreshing ? " spinning" : ""),
+    onClick: refreshData,
+    disabled: refreshing,
+    title: "Refresh data"
+  }, /*#__PURE__*/React.createElement(IconSync, null)), /*#__PURE__*/React.createElement("span", {
     className: "toolbar-divider"
   }), /*#__PURE__*/React.createElement(MessageCenter, {
     messages: messages,
