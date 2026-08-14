@@ -611,6 +611,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   tfoot .log-totals-row:hover td{ background:var(--surface-2); }
   .cell-company{ font-weight:600; color:var(--text-primary); }
   .cell-sub{ font-size:11.5px; color:var(--text-muted); margin-top:1px; }
+  .cell-meta{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .cell-role{ font-weight:600; color:var(--accent-blue); }
+  .cell-org{ font-weight:500; color:var(--text-secondary); }
+  .cell-meta-sep{ color:var(--text-muted); }
   .value-input{ width:110px; }
   .stage-select{ min-width:130px; }
   .role-select{ min-width:110px; }
@@ -7356,8 +7360,14 @@ function LeadsTable({
   })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
     className: "cell-company"
   }, l.fullName), /*#__PURE__*/React.createElement("div", {
-    className: "cell-sub"
-  }, l.jobTitle ? l.jobTitle + " · " : "", l.company)), /*#__PURE__*/React.createElement("td", null, fmt(l.value)), /*#__PURE__*/React.createElement("td", {
+    className: "cell-sub cell-meta"
+  }, l.jobTitle && /*#__PURE__*/React.createElement("span", {
+    className: "cell-role"
+  }, l.jobTitle), l.jobTitle && l.company && /*#__PURE__*/React.createElement("span", {
+    className: "cell-meta-sep"
+  }, "·"), l.company && /*#__PURE__*/React.createElement("span", {
+    className: "cell-org"
+  }, l.company), !l.jobTitle && !l.company && "—")), /*#__PURE__*/React.createElement("td", null, fmt(l.value)), /*#__PURE__*/React.createElement("td", {
     onClick: e => e.stopPropagation()
   }, mode === "active" ? /*#__PURE__*/React.createElement("select", {
     className: "select stage-select",
@@ -7539,7 +7549,7 @@ function LeadDrawer({
     className: "drawer-title"
   }, lead.fullName || "New Lead"), /*#__PURE__*/React.createElement("div", {
     className: "drawer-sub"
-  }, lead.jobTitle ? lead.jobTitle + " at " : "", lead.company)), /*#__PURE__*/React.createElement("button", {
+  }, lead.jobTitle, lead.jobTitle && lead.company ? " at " : "", lead.company, !lead.jobTitle && !lead.company ? "—" : "")), /*#__PURE__*/React.createElement("button", {
     className: "drawer-close",
     onClick: onClose
   }, /*#__PURE__*/React.createElement(IconX, null))), /*#__PURE__*/React.createElement("div", {
@@ -9370,6 +9380,88 @@ function BURow({
     onClick: () => onDelete(bu)
   }, /*#__PURE__*/React.createElement(IconTrash, null)))));
 }
+
+// One row of the Rep Quota Allocations table — same explicit save/cancel
+// pattern as BURow above. This used to be view-only (Business Unit, Rep,
+// Month, Year, and the target amount were all plain text, with only a
+// Delete button) — changing an already-saved allocation meant deleting it
+// and re-entering it from scratch in the form above. Now the Monthly Target
+// cell is a draft that can be edited and saved in place; Business Unit, Rep,
+// Month, and Year stay read-only badges/text since editing those would
+// really be "move this allocation somewhere else" rather than "correct this
+// amount" — a Delete + re-add through the form above is the right tool for
+// that, same as before.
+function AllocationRow({
+  t,
+  businessUnits,
+  reps,
+  currency,
+  rate,
+  onSaveAmount,
+  onDelete,
+  fmt
+}) {
+  const displayAmount = () => String(Math.round(toDisplayAmount(t.targetAmount, currency, rate)));
+  const [draftAmount, setDraftAmount] = useState(displayAmount);
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    setDraftAmount(displayAmount());
+  }, [t.targetAmount, currency, rate]);
+  const dirty = Number(draftAmount || 0) !== Math.round(toDisplayAmount(t.targetAmount, currency, rate));
+  async function handleSave() {
+    if (!dirty || saving) return;
+    setSaving(true);
+    await onSaveAmount(draftAmount);
+    setSaving(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
+  }
+  function handleCancel() {
+    setDraftAmount(displayAmount());
+  }
+  function handleKeyDown(e) {
+    if (e.key === "Enter") handleSave();else if (e.key === "Escape") handleCancel();
+  }
+  const accentColor = businessUnitColor(businessUnits, t.businessUnit);
+  return /*#__PURE__*/React.createElement("tr", {
+    className: "bu-table-row" + (dirty ? " bu-row-dirty" : ""),
+    style: {
+      "--bu-accent": accentColor
+    }
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUBadge, {
+    businessUnits: businessUnits,
+    name: t.businessUnit
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
+    reps: reps,
+    name: t.repName
+  })), /*#__PURE__*/React.createElement("td", null, MONTH_NAMES[t.month - 1]), /*#__PURE__*/React.createElement("td", null, t.year), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(MoneyAmountInput, {
+    className: "input target-amount-input alloc-amount-input",
+    value: draftAmount,
+    onChange: setDraftAmount,
+    onKeyDown: handleKeyDown
+  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "bu-row-actions"
+  }, justSaved && /*#__PURE__*/React.createElement("span", {
+    className: "bu-row-saved"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), " Saved"), dirty && !justSaved && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "btn success-ghost",
+    title: "Save changes",
+    onClick: handleSave,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost bu-row-cancel",
+    title: "Discard changes",
+    onClick: handleCancel,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconX, null))), /*#__PURE__*/React.createElement("button", {
+    className: "btn danger-ghost",
+    title: "Remove allocation",
+    onClick: onDelete
+  }, /*#__PURE__*/React.createElement(IconTrash, null)))));
+}
 function RepQuotaCard({
   stat,
   currency,
@@ -10167,19 +10259,17 @@ function BusinessUnits({
     className: "chart-sub"
   }, "Showing ", filteredAllocations.length, " of ", repTargets.length, " allocation", repTargets.length === 1 ? "" : "s"), /*#__PURE__*/React.createElement("div", {
     className: "table-wrap"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Rep"), /*#__PURE__*/React.createElement("th", null, "Month"), /*#__PURE__*/React.createElement("th", null, "Year"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filteredAllocations.map(t => /*#__PURE__*/React.createElement("tr", {
-    key: t.id
-  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(BUBadge, {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Rep"), /*#__PURE__*/React.createElement("th", null, "Month"), /*#__PURE__*/React.createElement("th", null, "Year"), /*#__PURE__*/React.createElement("th", null, "Monthly Target"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filteredAllocations.map(t => /*#__PURE__*/React.createElement(AllocationRow, {
+    key: t.id,
+    t: t,
     businessUnits: businessUnits,
-    name: t.businessUnit
-  })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
     reps: reps,
-    name: t.repName
-  })), /*#__PURE__*/React.createElement("td", null, MONTH_NAMES[t.month - 1]), /*#__PURE__*/React.createElement("td", null, t.year), /*#__PURE__*/React.createElement("td", null, fmt(t.targetAmount)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-    className: "btn danger-ghost",
-    title: "Remove allocation",
-    onClick: () => deleteAllocation(t.id)
-  }, /*#__PURE__*/React.createElement(IconTrash, null))))), filteredAllocations.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    currency: currency,
+    rate: rate,
+    fmt: fmt,
+    onSaveAmount: v => upsertOneAllocation(t.businessUnit, t.repName, t.year, t.month, toBaseUSD(Number(v) || 0, currency, rate)),
+    onDelete: () => deleteAllocation(t.id)
+  })), filteredAllocations.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: 6,
     className: "empty-feed"
   }, "No allocations match your filters."))))))), /*#__PURE__*/React.createElement("div", {
