@@ -342,7 +342,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 </script>
 
 <style>
+  @font-face{
+    font-family:'Orbitron';
+    src:url(data:font/woff2;base64,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) format('woff2');
+    font-weight:800;
+    font-style:normal;
+    font-display:swap;
+  }
   :root{
+    --font-brand: 'Orbitron', system-ui, -apple-system, "Segoe UI", sans-serif;
     --page:#0a0a0d;
     --surface-1:#17171b;
     --surface-2:#1e1e23;
@@ -418,8 +426,21 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     font-weight:700;font-size:15px;color:#fff;flex:0 0 auto;
   }
   .brand-text{ line-height:1.1; }
-  .brand-text .t1{ font-size:14px; font-weight:700; color:var(--text-primary); }
+  .brand-text .t1{ font-size:13px; font-weight:700; color:var(--text-primary); }
   .brand-text .t2{ font-size:11px; color:var(--text-muted); }
+
+  /* Brand wordmark — used for every "LeadForge" heading (sidebar, login
+     screen, mobile topbar) so the product name always reads in the same
+     distinctive display face rather than the plain body font. */
+  .brand-wordmark{
+    font-family:var(--font-brand);
+    font-weight:800;
+    letter-spacing:.02em;
+    background:var(--grad-primary);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    white-space:nowrap;
+  }
+  .brand-text .t1.brand-wordmark{ letter-spacing:.01em; }
 
   .nav{ display:flex; flex-direction:column; gap:4px; margin-top:6px; }
   .nav-item{
@@ -1061,7 +1082,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .splash-content{ position:relative; display:flex; flex-direction:column; align-items:center; gap:18px; z-index:2; }
   .splash-logo{ width:180px; height:auto; animation:splashLogoPulse 2.4s ease-in-out infinite; }
   .splash-wordmark{
-    font-size:38px; font-weight:800; letter-spacing:.02em;
+    font-family:var(--font-brand);
+    font-size:36px; font-weight:800; letter-spacing:.04em;
     animation:splashWordmarkIn .6s ease .15s both;
   }
   .wm-lead{ color:#ffffff; }
@@ -1213,7 +1235,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .login-logo-lg{ width:38px; height:38px; object-fit:contain; }
   .login-brand-heading{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; }
-  .login-brand-name{ font-size:25px; font-weight:800; letter-spacing:-.01em; }
+  .login-brand-name{ font-size:26px; }
   .login-brand-panel-tagline{
     font-size:11px; font-weight:700; letter-spacing:.08em;
     text-transform:uppercase; color:var(--accent-blue);
@@ -1432,6 +1454,77 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   .pipeline-view-toggle{ margin-bottom:14px; display:inline-flex; }
   .pipeline-view-toggle .seg-btn{ display:inline-flex; align-items:center; gap:5px; }
+  .pipeline-display-toggle{ margin-bottom:14px; margin-left:10px; display:inline-flex; }
+
+  /* ---------------------------------------------------------------- */
+  /* Lead Pipeline — Kanban / Board view                               */
+  /* ---------------------------------------------------------------- */
+
+  .kanban-board-wrap{
+    padding:14px; margin-bottom:0;
+  }
+  .kanban-board-wrap:hover{ transform:none; border-color:var(--border); box-shadow:var(--shadow-card); }
+  .kanban-board{
+    display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:12px; align-items:start;
+  }
+  .kanban-column{
+    min-width:0;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+    display:flex; flex-direction:column; max-height:calc(100vh - 300px); min-height:180px;
+    box-shadow:inset 0 3px 0 0 var(--stage-accent, #8b8a9a);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .kanban-column.drag-over{
+    border-color:var(--stage-accent, #0088FF);
+    background:color-mix(in srgb, var(--stage-accent, #0088FF) 10%, var(--surface-2));
+  }
+  .kanban-column-head{
+    padding:11px 12px; border-bottom:1px solid var(--border); flex:0 0 auto;
+    display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;
+  }
+  .kanban-column-title{
+    display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--text-primary);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .kanban-column-meta{ display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:var(--text-muted); flex:0 0 auto; }
+  .kanban-column-count{
+    background:var(--surface-1); border-radius:20px; padding:2px 7px; min-width:18px; text-align:center;
+  }
+  .kanban-column-value{ white-space:nowrap; }
+  .kanban-column-body{
+    padding:9px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1 1 auto;
+  }
+  .kanban-empty{
+    font-size:11.5px; color:var(--text-muted); text-align:center; padding:16px 5px;
+    border:1.5px dashed var(--border); border-radius:9px;
+  }
+  .kanban-card{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+    padding:10px 11px; cursor:grab; transition:opacity .12s ease, box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+  }
+  .kanban-card:hover{ box-shadow:0 4px 14px rgba(0,0,0,0.25); transform:translateY(-1px); border-color:var(--border-strong); }
+  .kanban-card.dragging{ opacity:0.4; cursor:grabbing; }
+  .kanban-card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:6px; margin-bottom:4px; }
+  .kanban-card-name{ font-size:12.5px; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; }
+  .kanban-card-company{ font-size:11.5px; color:var(--text-muted); margin-bottom:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kanban-card-bottom{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .kanban-card-value{ font-size:12px; font-weight:700; color:var(--text-secondary); }
+  .kanban-card-owner{
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+    width:21px; height:21px; border-radius:50%; border:1px solid;
+    font-size:9px; font-weight:800;
+  }
+  .kanban-card-owner-unassigned{
+    background:var(--surface-2); color:var(--text-muted); border-color:var(--border);
+  }
+  @media (max-width:1100px){
+    .kanban-board{ grid-template-columns:repeat(5, minmax(160px, 1fr)); overflow-x:auto; }
+  }
+  @media (max-width:900px){
+    .kanban-board{ display:flex; overflow-x:auto; padding-bottom:6px; }
+    .kanban-column{ flex:0 0 220px; min-width:220px; }
+  }
+
   .bin-notice{
     font-size:12px; color:var(--text-muted); background:var(--surface-1);
     border:1px solid var(--border); border-radius:9px; padding:9px 14px; margin-bottom:14px;
@@ -1535,6 +1628,37 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .pipeline-pagination .btn svg{ width:13px; height:13px; }
 
   /* ---------------------------------------------------------------- */
+  /* Who's online right now (Realtime Presence) -- sits directly above the   */
+  /* connectivity indicator below, same footer, same visual weight.          */
+  /* ---------------------------------------------------------------- */
+
+  .online-users-badge{
+    display:flex; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
+    border-radius:8px; font-size:12px; font-weight:700; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-secondary);
+  }
+  .online-dot{
+    flex:0 0 auto; width:8px; height:8px; border-radius:50%;
+    background:var(--status-good); box-shadow:0 0 0 3px rgba(47,214,108,0.18);
+  }
+  .online-users-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .online-avatar-stack{ display:flex; align-items:center; margin-left:auto; }
+  .online-avatar{
+    display:flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; flex:0 0 auto;
+    background:rgba(0,136,255,0.18); color:var(--accent-blue);
+    border:2px solid var(--surface-1); font-size:9.5px; font-weight:800;
+    margin-left:-7px;
+  }
+  .online-avatar:first-child{ margin-left:0; }
+  .online-avatar-more{ background:var(--surface-2); color:var(--text-secondary); }
+  .online-count-badge{
+    display:flex; align-items:center; justify-content:center;
+    min-width:16px; height:16px; padding:0 4px; border-radius:8px;
+    background:var(--status-good); color:#06140a; font-size:10px; font-weight:800;
+  }
+  .sidebar.collapsed .online-users-badge{ justify-content:center; padding:8px; gap:6px; }
+
   /* Online / offline connectivity indicator                          */
   /* ---------------------------------------------------------------- */
 
@@ -4443,7 +4567,7 @@ function LoginScreen({
   })), /*#__PURE__*/React.createElement("div", {
     className: "login-brand-heading"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "login-brand-name"
+    className: "login-brand-name brand-wordmark"
   }, "LeadForge"), /*#__PURE__*/React.createElement("div", {
     className: "login-brand-panel-tagline"
   }, "Accelerate & Close")), /*#__PURE__*/React.createElement("p", {
@@ -4690,6 +4814,42 @@ function LoginScreen({
 /* Sidebar                                                                 */
 /* ---------------------------------------------------------------------- */
 
+// Shows who else is actually using the app right now, fed by a Supabase
+// Realtime Presence channel (see the effect in App() that tracks/subscribes
+// to it) -- this is live peer-to-peer state, not a "last seen" timestamp, so
+// someone drops off the list the instant their tab disconnects rather than
+// sitting there stale. Sits directly above the sync/connection status badge
+// in the sidebar footer, since both are answering the same kind of question
+// ("what's the live state of this session right now").
+function initialsFor(name) {
+  return (name || "").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+}
+function OnlineUsersBadge({
+  onlineUsers,
+  collapsed
+}) {
+  const count = onlineUsers.length;
+  const names = onlineUsers.map(u => u.name).filter(Boolean);
+  const title = count > 0 ? `Online now: ${names.join(", ")}` : "No one else is online right now";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "online-users-badge",
+    title: title
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "online-dot"
+  }), !collapsed && /*#__PURE__*/React.createElement("span", {
+    className: "online-users-label"
+  }, count, " online"), !collapsed && count > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "online-avatar-stack"
+  }, onlineUsers.slice(0, 4).map(u => /*#__PURE__*/React.createElement("span", {
+    key: u.id,
+    className: "online-avatar",
+    title: u.name
+  }, initialsFor(u.name))), count > 4 && /*#__PURE__*/React.createElement("span", {
+    className: "online-avatar online-avatar-more"
+  }, "+", count - 4)), collapsed && count > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "online-count-badge"
+  }, count));
+}
 function SyncStatusBadge({
   online,
   pending,
@@ -4779,6 +4939,7 @@ function Sidebar({
   online,
   pending,
   syncing,
+  onlineUsers,
   mobileOpen,
   onNavigate
 }) {
@@ -4799,7 +4960,7 @@ function Sidebar({
   }), !collapsed && /*#__PURE__*/React.createElement("div", {
     className: "brand-text"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "t1"
+    className: "t1 brand-wordmark"
   }, "LeadForge"), /*#__PURE__*/React.createElement("div", {
     className: "t2"
   }, "Accelerate & Close"))), /*#__PURE__*/React.createElement("div", {
@@ -4816,7 +4977,10 @@ function Sidebar({
     className: "nav-icon"
   }, it.icon), !collapsed && /*#__PURE__*/React.createElement("span", null, it.label)))), /*#__PURE__*/React.createElement("div", {
     className: "sidebar-footer"
-  }, /*#__PURE__*/React.createElement(SyncStatusBadge, {
+  }, /*#__PURE__*/React.createElement(OnlineUsersBadge, {
+    onlineUsers: onlineUsers || [],
+    collapsed: collapsed
+  }), /*#__PURE__*/React.createElement(SyncStatusBadge, {
     online: online,
     pending: pending,
     syncing: syncing,
@@ -8086,6 +8250,142 @@ function LeadDrawer({
   return ReactDOM.createPortal(drawer, document.body);
 }
 
+// Kanban / Board view for the Lead Pipeline -- an alternate way to work the
+// same filtered, active lead list LeadsTable renders (search/priority/
+// source/Business-Unit/rep filters all still apply -- only the Table vs.
+// Board toggle changes how the result is displayed). One column per pipeline
+// stage; dragging a card to a different column commits the stage change
+// immediately through the exact same onStageChange handler the table's Stage
+// dropdown uses (stageChange in LeadPipeline), so Closed Won/Lost still
+// trigger the same win-probability bump, reason-lost prompt, and
+// closedDate stamping either way -- the drag IS the deliberate action here,
+// the same way clicking that dropdown's own Save icon is in the table.
+// Plain HTML5 drag-and-drop (draggable/onDragStart/onDragOver/onDrop) --
+// this app has no bundler to pull in a drag-and-drop library through, so
+// there's nothing to add beyond what the browser already provides.
+function KanbanCard({
+  lead,
+  reps,
+  fmt,
+  onOpenLead,
+  draggingId,
+  setDraggingId,
+  onCardDragEnd
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "kanban-card" + (draggingId === lead.id ? " dragging" : ""),
+    draggable: true,
+    onDragStart: e => {
+      setDraggingId(lead.id);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", lead.id);
+    },
+    onDragEnd: onCardDragEnd,
+    onClick: () => onOpenLead(lead.id)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kanban-card-top"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kanban-card-name"
+  }, lead.fullName || "Unnamed Lead"), /*#__PURE__*/React.createElement(PriorityBadge, {
+    priority: lead.priority
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "kanban-card-company"
+  }, lead.company || "—"), /*#__PURE__*/React.createElement("div", {
+    className: "kanban-card-bottom"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "kanban-card-value"
+  }, fmt(lead.value)), lead.assignedRep ? /*#__PURE__*/React.createElement("span", {
+    className: "kanban-card-owner",
+    title: lead.assignedRep,
+    style: {
+      background: hexToRgba(repColor(reps, lead.assignedRep), 0.18),
+      color: repColor(reps, lead.assignedRep),
+      borderColor: hexToRgba(repColor(reps, lead.assignedRep), 0.4)
+    }
+  }, initialsFor(lead.assignedRep)) : /*#__PURE__*/React.createElement("span", {
+    className: "kanban-card-owner kanban-card-owner-unassigned",
+    title: "Unassigned"
+  }, "—")));
+}
+function KanbanBoard({
+  leads,
+  reps,
+  currency,
+  rate,
+  onOpenLead,
+  onStageChange
+}) {
+  const fmt = makeMoneyFormatter(currency, rate);
+  const fmtCompact = makeCompactMoneyFormatter(currency, rate);
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
+  function handleDrop(e, stage) {
+    e.preventDefault();
+    setDragOverStage(null);
+    const id = e.dataTransfer.getData("text/plain") || draggingId;
+    setDraggingId(null);
+    if (!id) return;
+    const lead = leads.find(l => l.id === id);
+    if (!lead || lead.stage === stage) return;
+    onStageChange(id, stage);
+  }
+  function handleCardDragEnd() {
+    setDraggingId(null);
+    setDragOverStage(null);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card kanban-board-wrap"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kanban-board"
+  }, STAGES.map(stage => {
+    const cards = leads.filter(l => l.stage === stage);
+    const totalValue = cards.reduce((s, l) => s + (l.value || 0), 0);
+    const accent = STAGE_COLOR_HEX[stage] || "#8b8a9a";
+    return /*#__PURE__*/React.createElement("div", {
+      key: stage,
+      className: "kanban-column" + (dragOverStage === stage ? " drag-over" : ""),
+      style: {
+        "--stage-accent": accent
+      },
+      onDragOver: e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDragOverStage(stage);
+      },
+      onDragLeave: () => setDragOverStage(cur => cur === stage ? null : cur),
+      onDrop: e => handleDrop(e, stage)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "kanban-column-head"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "kanban-column-title"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stage-dot",
+      style: {
+        background: accent
+      }
+    }), stage), /*#__PURE__*/React.createElement("div", {
+      className: "kanban-column-meta"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "kanban-column-count"
+    }, cards.length), /*#__PURE__*/React.createElement("span", {
+      className: "kanban-column-value"
+    }, fmtCompact(totalValue)))), /*#__PURE__*/React.createElement("div", {
+      className: "kanban-column-body"
+    }, cards.map(l => /*#__PURE__*/React.createElement(KanbanCard, {
+      key: l.id,
+      lead: l,
+      reps: reps,
+      fmt: fmt,
+      onOpenLead: onOpenLead,
+      draggingId: draggingId,
+      setDraggingId: setDraggingId,
+      onCardDragEnd: handleCardDragEnd
+    })), cards.length === 0 && /*#__PURE__*/React.createElement("div", {
+      className: "kanban-empty"
+    }, "No leads", dragOverStage === stage ? " — drop here" : "")));
+  })));
+}
+
 /* ---------------------------------------------------------------------- */
 /* Lead Pipeline tab                                                      */
 /* ---------------------------------------------------------------------- */
@@ -8104,6 +8404,12 @@ function LeadPipeline({
   isAdmin
 }) {
   const [view, setView] = useState("active");
+  // Table (the default, sortable/paginated/bulk-selectable list) vs. Board
+  // (a Kanban view, one column per stage, drag-to-move) -- Board only makes
+  // sense for the Active view, so switching away from Active drops back to
+  // Table automatically (see the effect below) instead of leaving Board
+  // silently selected somewhere it can't actually render.
+  const [displayMode, setDisplayMode] = useState("table");
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -8171,6 +8477,9 @@ function LeadPipeline({
   useEffect(() => {
     setSelectedIds(new Set());
   }, [view]);
+  useEffect(() => {
+    if (view !== "active" && displayMode === "board") setDisplayMode("table");
+  }, [view, displayMode]);
   // Any change to what's being filtered/searched can shrink the result set
   // out from under whatever page you were on (e.g. page 4 of a search that
   // now only has 1 page) -- jump back to page 1 whenever the filters change,
@@ -8609,7 +8918,17 @@ function LeadPipeline({
     type: "button",
     className: "seg-btn" + (view === "bin" ? " active" : ""),
     onClick: () => setView("bin")
-  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0Recycle Bin (", binLeads.length, ")")), view === "bin" && binLeads.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0Recycle Bin (", binLeads.length, ")")), view === "active" && /*#__PURE__*/React.createElement("div", {
+    className: "seg-toggle pipeline-display-toggle"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "seg-btn" + (displayMode === "table" ? " active" : ""),
+    onClick: () => setDisplayMode("table")
+  }, "Table"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "seg-btn" + (displayMode === "board" ? " active" : ""),
+    onClick: () => setDisplayMode("board")
+  }, "Board")), view === "bin" && binLeads.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "bin-notice"
   }, "Leads in the Recycle Bin are permanently deleted after ", TRASH_RETENTION_DAYS, " days. Restore them anytime before then."), /*#__PURE__*/React.createElement("div", {
     className: "card filters-bar"
@@ -8666,7 +8985,14 @@ function LeadPipeline({
     }
   }, b.name)), /*#__PURE__*/React.createElement("option", {
     value: "Unassigned"
-  }, "Unassigned")))), allPageSelected && filtered.length > pageLeads.length && !allFilteredSelected && /*#__PURE__*/React.createElement("div", {
+  }, "Unassigned")))), view === "active" && displayMode === "board" ? /*#__PURE__*/React.createElement(KanbanBoard, {
+    leads: filtered,
+    reps: reps,
+    currency: currency,
+    rate: rate,
+    onOpenLead: setActiveLeadId,
+    onStageChange: stageChange
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, allPageSelected && filtered.length > pageLeads.length && !allFilteredSelected && /*#__PURE__*/React.createElement("div", {
     className: "select-all-banner"
   }, "All ", pageLeads.length, " leads on this page are selected.", /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -8760,7 +9086,7 @@ function LeadPipeline({
     onClick: () => setPage(p => Math.min(totalPages, p + 1))
   }, "Next\xA0", /*#__PURE__*/React.createElement(IconChevron, {
     dir: "right"
-  })))), activeLead && /*#__PURE__*/React.createElement(LeadDrawer, {
+  }))))), activeLead && /*#__PURE__*/React.createElement(LeadDrawer, {
     lead: activeLead,
     reps: reps,
     businessUnits: businessUnits,
@@ -13535,6 +13861,55 @@ function App() {
       sb.removeChannel(channel);
     };
   }, [currentUser && currentUser.id]);
+
+  // Live "who's online" — every logged-in tab joins the same Supabase
+  // Realtime Presence channel and tracks itself the moment it subscribes.
+  // Presence state is synced peer-to-peer across every connected client and
+  // clears automatically the instant a tab disconnects (closed, network
+  // drop, logout), so the sidebar's list is always the actual live set of
+  // people using the app right now — never a stale "last seen" snapshot.
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  useEffect(() => {
+    if (!currentUser) {
+      setOnlineUsers([]);
+      return;
+    }
+    const myOwnName = currentUser.role === "Admin" ? currentUser.name : currentUser.repName || "";
+    const channel = sb.channel("leadforge-presence", {
+      config: {
+        presence: {
+          key: currentUser.id
+        }
+      }
+    });
+    channel.on("presence", {
+      event: "sync"
+    }, () => {
+      const state = channel.presenceState();
+      const users = Object.keys(state).map(key => {
+        const entry = state[key] && state[key][0];
+        return entry ? {
+          id: key,
+          name: entry.name,
+          role: entry.role
+        } : null;
+      }).filter(Boolean);
+      users.sort((a, b) => a.name.localeCompare(b.name));
+      setOnlineUsers(users);
+    });
+    channel.subscribe(async status => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({
+          name: myOwnName || currentUser.email || "Someone",
+          role: currentUser.role
+        });
+      }
+    });
+    return () => {
+      sb.removeChannel(channel);
+      setOnlineUsers([]);
+    };
+  }, [currentUser && currentUser.id]);
   const role = currentUser ? currentUser.role : null;
   const isAdmin = role === "Admin";
   const lockedRep = currentUser && currentUser.role === "Sales Rep" ? currentUser.repName || "" : null;
@@ -13849,7 +14224,7 @@ function App() {
     src: LOGO_ICON_SM,
     alt: "LeadForge"
   }), /*#__PURE__*/React.createElement("span", {
-    className: "mobile-topbar-title"
+    className: "mobile-topbar-title brand-wordmark"
   }, "LeadForge")), mobileNavOpen && /*#__PURE__*/React.createElement("div", {
     className: "sidebar-backdrop",
     onClick: () => setMobileNavOpen(false)
@@ -13863,6 +14238,7 @@ function App() {
     online: online,
     pending: pending,
     syncing: syncing,
+    onlineUsers: onlineUsers,
     mobileOpen: mobileNavOpen,
     onNavigate: () => setMobileNavOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
