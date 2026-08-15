@@ -1461,16 +1461,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   /* ---------------------------------------------------------------- */
 
   .kanban-board-wrap{
-    padding:14px; margin-bottom:0;
+    padding:10px; margin-bottom:0;
   }
   .kanban-board-wrap:hover{ transform:none; border-color:var(--border); box-shadow:var(--shadow-card); }
   .kanban-board{
-    display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:12px; align-items:start;
+    display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px; align-items:start;
   }
   .kanban-column{
     min-width:0;
-    background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
-    display:flex; flex-direction:column; max-height:calc(100vh - 300px); min-height:180px;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    display:flex; flex-direction:column; max-height:calc(100vh - 270px); min-height:130px;
     box-shadow:inset 0 3px 0 0 var(--stage-accent, #8b8a9a);
     transition:border-color .15s ease, background .15s ease;
   }
@@ -1479,50 +1479,53 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     background:color-mix(in srgb, var(--stage-accent, #0088FF) 10%, var(--surface-2));
   }
   .kanban-column-head{
-    padding:11px 12px; border-bottom:1px solid var(--border); flex:0 0 auto;
-    display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;
+    padding:7px 9px; border-bottom:1px solid var(--border); flex:0 0 auto;
+    display:flex; align-items:center; justify-content:space-between; gap:5px; flex-wrap:wrap;
   }
   .kanban-column-title{
-    display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--text-primary);
+    display:flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--text-primary);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .kanban-column-meta{ display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:var(--text-muted); flex:0 0 auto; }
+  .kanban-column-meta{ display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:var(--text-muted); flex:0 0 auto; }
   .kanban-column-count{
-    background:var(--surface-1); border-radius:20px; padding:2px 7px; min-width:18px; text-align:center;
+    background:var(--surface-1); border-radius:20px; padding:1px 6px; min-width:16px; text-align:center;
   }
   .kanban-column-value{ white-space:nowrap; }
   .kanban-column-body{
-    padding:9px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1 1 auto;
+    padding:6px; display:flex; flex-direction:column; gap:5px; overflow-y:auto; flex:1 1 auto;
   }
   .kanban-empty{
-    font-size:11.5px; color:var(--text-muted); text-align:center; padding:16px 5px;
-    border:1.5px dashed var(--border); border-radius:9px;
+    font-size:10.5px; color:var(--text-muted); text-align:center; padding:11px 5px;
+    border:1.5px dashed var(--border); border-radius:8px;
   }
   .kanban-card{
-    background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
-    padding:10px 11px; cursor:grab; transition:opacity .12s ease, box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:8px;
+    padding:7px 8px; cursor:grab; transition:opacity .12s ease, box-shadow .12s ease, transform .12s ease, border-color .12s ease;
   }
   .kanban-card:hover{ box-shadow:0 4px 14px rgba(0,0,0,0.25); transform:translateY(-1px); border-color:var(--border-strong); }
   .kanban-card.dragging{ opacity:0.4; cursor:grabbing; }
-  .kanban-card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:6px; margin-bottom:4px; }
-  .kanban-card-name{ font-size:12.5px; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; }
-  .kanban-card-company{ font-size:11.5px; color:var(--text-muted); margin-bottom:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .kanban-card-bottom{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
-  .kanban-card-value{ font-size:12px; font-weight:700; color:var(--text-secondary); }
+  .kanban-card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:5px; margin-bottom:2px; }
+  .kanban-card-name{ font-size:11px; font-weight:700; color:var(--text-primary); line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kanban-card-company{ font-size:10px; color:var(--text-muted); margin-bottom:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kanban-card-bottom{ display:flex; align-items:center; justify-content:space-between; gap:5px; }
+  .kanban-card-value{ font-size:11px; font-weight:700; color:var(--text-secondary); }
   .kanban-card-owner{
     display:flex; align-items:center; justify-content:center; flex:0 0 auto;
-    width:21px; height:21px; border-radius:50%; border:1px solid;
-    font-size:9px; font-weight:800;
+    width:17px; height:17px; border-radius:50%; border:1px solid;
+    font-size:7.5px; font-weight:800;
   }
   .kanban-card-owner-unassigned{
     background:var(--surface-2); color:var(--text-muted); border-color:var(--border);
   }
+  .kanban-card .priority-badge{
+    font-size:9px; font-weight:700; padding:1px 6px; line-height:1.5;
+  }
   @media (max-width:1100px){
-    .kanban-board{ grid-template-columns:repeat(5, minmax(160px, 1fr)); overflow-x:auto; }
+    .kanban-board{ grid-template-columns:repeat(5, minmax(150px, 1fr)); overflow-x:auto; }
   }
   @media (max-width:900px){
     .kanban-board{ display:flex; overflow-x:auto; padding-bottom:6px; }
-    .kanban-column{ flex:0 0 220px; min-width:220px; }
+    .kanban-column{ flex:0 0 200px; min-width:200px; }
   }
 
   .bin-notice{
@@ -8285,11 +8288,13 @@ function KanbanCard({
   }, /*#__PURE__*/React.createElement("div", {
     className: "kanban-card-top"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "kanban-card-name"
+    className: "kanban-card-name",
+    title: lead.fullName || "Unnamed Lead"
   }, lead.fullName || "Unnamed Lead"), /*#__PURE__*/React.createElement(PriorityBadge, {
     priority: lead.priority
   })), /*#__PURE__*/React.createElement("div", {
-    className: "kanban-card-company"
+    className: "kanban-card-company",
+    title: lead.company || ""
   }, lead.company || "—"), /*#__PURE__*/React.createElement("div", {
     className: "kanban-card-bottom"
   }, /*#__PURE__*/React.createElement("span", {
