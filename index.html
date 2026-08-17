@@ -11121,6 +11121,19 @@ function AccountSettings({
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(null); // { type: "ok" | "error", text }
   const fileInputRef = useRef(null);
+
+  // Change Password — separate from the "forgot password" email-link flow
+  // (LoginScreen's reset mode): this is for someone who's already logged in
+  // and still remembers their current password, so it's gated behind
+  // re-entering that current password rather than a mailed link. Kept as its
+  // own card with its own status/pending state so a mistake here (e.g. wrong
+  // current password) never gets confused with the Account Details save above.
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmNewPw, setConfirmNewPw] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwStatus, setPwStatus] = useState(null); // { type: "ok" | "error", text }
+
   const dirty = name.trim() !== (currentUser.name || "").trim() || phone.trim() !== (currentUser.phone || "").trim() || company.trim() !== (currentUser.company || "").trim() || (avatarPreview || null) !== (currentUser.avatarUrl || null);
   function pickPhoto() {
     if (fileInputRef.current) fileInputRef.current.click();
@@ -11234,6 +11247,78 @@ function AccountSettings({
       text: "Profile updated."
     });
   }
+  async function handleChangePassword() {
+    setPwStatus(null);
+    if (!currentPassword) {
+      setPwStatus({
+        type: "error",
+        text: "Enter your current password."
+      });
+      return;
+    }
+    if (newPw.length < 6) {
+      setPwStatus({
+        type: "error",
+        text: "New password must be at least 6 characters."
+      });
+      return;
+    }
+    if (newPw !== confirmNewPw) {
+      setPwStatus({
+        type: "error",
+        text: "New passwords don't match."
+      });
+      return;
+    }
+    if (!isOnlineNow()) {
+      setPwStatus({
+        type: "error",
+        text: "You're offline — connect to the internet to change your password."
+      });
+      return;
+    }
+    setPwSaving(true);
+    // Same re-authentication trick used elsewhere in the app (role changes,
+    // removing a user): re-signing in as yourself is harmless (no session/
+    // logout change) and simply fails if the current password is wrong —
+    // that's the "authorize" step confirming it's really you before the
+    // password actually changes.
+    const {
+      error: authError
+    } = await sb.auth.signInWithPassword({
+      email: currentUser.email,
+      password: currentPassword
+    });
+    if (authError) {
+      setPwSaving(false);
+      setPwStatus({
+        type: "error",
+        text: "Current password is incorrect."
+      });
+      return;
+    }
+    const {
+      error
+    } = await sb.auth.updateUser({
+      password: newPw
+    });
+    setPwSaving(false);
+    if (error) {
+      setPwStatus({
+        type: "error",
+        text: "Could not change password: " + error.message
+      });
+      return;
+    }
+    setCurrentPassword("");
+    setNewPw("");
+    setConfirmNewPw("");
+    setPwStatus({
+      type: "ok",
+      text: "Password changed."
+    });
+    showToast("Password changed.");
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
@@ -11342,7 +11427,56 @@ function AccountSettings({
     className: "btn",
     disabled: !dirty || saving,
     onClick: handleSave
-  }, saving ? "Saving…" : "Save Changes"))));
+  }, saving ? "Saving…" : "Save Changes"))), /*#__PURE__*/React.createElement("div", {
+    className: "card settings-card",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Change Password")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "Enter your current password, then choose a new one."), /*#__PURE__*/React.createElement("div", {
+    className: "settings-form-grid",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("label", null, "Current Password", /*#__PURE__*/React.createElement(PasswordInput, {
+    autoComplete: "current-password",
+    placeholder: "Your current password",
+    value: currentPassword,
+    onChange: e => {
+      setCurrentPassword(e.target.value);
+      setPwStatus(null);
+    }
+  })), /*#__PURE__*/React.createElement("label", null, "New Password", /*#__PURE__*/React.createElement(PasswordInput, {
+    autoComplete: "new-password",
+    placeholder: "At least 6 characters",
+    value: newPw,
+    onChange: e => {
+      setNewPw(e.target.value);
+      setPwStatus(null);
+    }
+  })), /*#__PURE__*/React.createElement("label", null, "Confirm New Password", /*#__PURE__*/React.createElement(PasswordInput, {
+    autoComplete: "new-password",
+    placeholder: "Re-enter new password",
+    value: confirmNewPw,
+    onChange: e => {
+      setConfirmNewPw(e.target.value);
+      setPwStatus(null);
+    }
+  }))), pwStatus && /*#__PURE__*/React.createElement("div", {
+    className: "settings-status " + (pwStatus.type === "error" ? "is-error" : "is-ok")
+  }, pwStatus.text), /*#__PURE__*/React.createElement("div", {
+    className: "settings-save-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn",
+    disabled: pwSaving,
+    onClick: handleChangePassword
+  }, pwSaving ? "Changing…" : "Change Password"))));
 }
 
 /* ---------------------------------------------------------------------- */
