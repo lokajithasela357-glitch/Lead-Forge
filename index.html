@@ -2055,6 +2055,81 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   @media (max-width:420px){
     .confirm-modal{ padding:20px 18px 18px; }
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Executive Dashboard → structured PDF export                         */
+  /* (Dashboard's "Export to PDF" button triggers window.print(); the    */
+  /* actual PDF is produced by the browser/OS "Save as PDF" print        */
+  /* target, both in a normal browser tab and inside the Electron        */
+  /* desktop build, which exposes the same native print dialog.)         */
+  /* ------------------------------------------------------------------ */
+  .print-report-header{ display:none; }
+
+  @media print{
+    /* Only the report itself belongs on paper -- every bit of app chrome
+       (nav, toolbars, the floating profile icon, toasts, the on-screen
+       "Export to PDF" button itself via .no-print) is stripped out. */
+    .sidebar, .sidebar-backdrop, .mobile-topbar, .profile-fab-wrap,
+    .toast-stack, .header-toolbar, .no-print{
+      display:none !important;
+    }
+    .app-shell{ display:block; }
+    .main{ padding:0; margin:0; max-width:none; width:100%; }
+    .tab-content{ animation:none; }
+    .topbar{ display:none; }
+
+    .print-report-header{
+      display:block;
+      margin-bottom:18px;
+      padding-bottom:14px;
+      border-bottom:2px solid #0088FF;
+    }
+    .print-report-brand{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .print-report-logo{ width:26px; height:26px; object-fit:contain; }
+    .print-report-brand-name{ font-size:15px; font-weight:800; letter-spacing:.02em; color:#0088FF; }
+    .print-report-title{ font-size:20px; font-weight:800; margin:2px 0 10px; color:#0a0a0d; }
+    .print-report-meta{
+      display:grid; grid-template-columns:repeat(2, 1fr); gap:4px 24px;
+      font-size:11.5px; color:#333;
+    }
+    .print-report-meta span{ font-weight:700; color:#000; margin-right:5px; }
+
+    /* Paper-friendly theme -- redefining the app's own CSS custom
+       properties once cascades to every card/chart/text color already
+       reading them (every chart in this app is plain SVG using var(...)
+       for its colors), so nothing per-component needs to change. */
+    :root{
+      --page:#ffffff;
+      --surface-1:#ffffff;
+      --surface-2:#f4f5f7;
+      --surface-3:#eceef1;
+      --text-primary:#111114;
+      --text-secondary:#33333c;
+      --text-muted:#5a5a66;
+      --border:#d8d9de;
+      --border-strong:#b8bac2;
+      --grid:#e4e5e9;
+      --baseline:#9a9aa4;
+      --shadow-card:none;
+      --shadow-card-hover:none;
+    }
+    body{ background:#fff !important; }
+    .card{
+      box-shadow:none !important; border:1px solid #d8d9de;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .card:hover{ transform:none; box-shadow:none; border-color:#d8d9de; }
+    .kpi-value{ background:none; -webkit-text-fill-color:initial; color:#111114 !important; }
+    .kpi-grid{ grid-template-columns:repeat(4,1fr) !important; }
+    .charts-grid{ grid-template-columns:1fr 1fr !important; }
+    .charts-grid, .kpi-grid, .leaderboard-grid{ break-inside:avoid; }
+    .chart-wrap, .chart-card, .kpi-card, .alerts-banner{ break-inside:avoid; page-break-inside:avoid; }
+
+    /* Landscape suits this report's wide KPI/chart grids better than the
+       browser's default portrait -- the print dialog still lets the user
+       flip it back to portrait if they prefer. */
+    @page{ size:landscape; margin:14mm 10mm; }
+  }
 </style>
 <body>
 <div id="root"></div>
@@ -6681,8 +6756,12 @@ function ProfileFab({
   setTab
 }) {
   if (!user) return null;
-  const target = isAdmin ? "users" : "settings";
-  const label = isAdmin ? "User Management" : "My Profile";
+  // Always land on the signed-in user's own profile page, regardless of
+  // role — the icon's job is "take me to my profile," not "take me
+  // somewhere role-appropriate." The is-admin styling is kept purely as a
+  // visual role indicator (orange ring), independent of where the click goes.
+  const target = "settings";
+  const label = "My Profile";
   return /*#__PURE__*/React.createElement("div", {
     className: "profile-fab-wrap"
   }, /*#__PURE__*/React.createElement("button", {
@@ -12615,7 +12694,8 @@ function Dashboard({
   currency,
   rate,
   onJumpToLead,
-  showTeamBreakdown
+  showTeamBreakdown,
+  currentUser
 }) {
   const fmt = makeMoneyFormatter(currency, rate);
   const fmtCompact = makeCompactMoneyFormatter(currency, rate);
@@ -12773,15 +12853,76 @@ function Dashboard({
       year: repPerfYear
     };
   }).filter(s => s.rep);
+
+  // --- Export to PDF (Executive Dashboard only) ---------------------------
+  // Uses the browser's native print pipeline rather than a screenshot/canvas
+  // library: window.print() + a dedicated @media print stylesheet produces
+  // genuine vector, selectable-text PDF output (via each OS's "Save as PDF"
+  // in the print dialog -- including inside the Electron desktop build,
+  // which already exposes that same native dialog for free) instead of a
+  // rasterized image, and needs no extra dependency to ship.
+  const periodLabel = timeframe.mode === "monthly" ? `${MONTH_NAMES[Number(timeframe.monthAnchor.slice(5, 7)) - 1]} ${timeframe.monthAnchor.slice(0, 4)}` : String(timeframe.yearAnchor);
+  const [printing, setPrinting] = useState(false);
+  const [printMeta, setPrintMeta] = useState(null);
+  function handleExportPdf() {
+    setPrintMeta({
+      generatedAt: new Date().toLocaleString()
+    });
+    setPrinting(true);
+  }
+  useEffect(() => {
+    if (!printing) return;
+    const prevTitle = document.title;
+    // A short delay lets the print-only header actually paint (and any
+    // layout settle) before the print dialog opens -- Chromium's @page
+    // margin boxes don't support custom repeating footers, so the
+    // descriptive title here is what shows up if the user enables the
+    // print dialog's own "Headers and footers" toggle.
+    const timer = setTimeout(() => {
+      document.title = `LeadForge Executive Dashboard — ${isScoped ? selectedRep : "Full Team"} — ${periodLabel}`;
+      window.print();
+    }, 120);
+    function handleAfterPrint() {
+      document.title = prevTitle;
+      setPrinting(false);
+    }
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("afterprint", handleAfterPrint);
+      document.title = prevTitle;
+    };
+  }, [printing]);
   return /*#__PURE__*/React.createElement("div", {
     className: "tab-content"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "print-report-header"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "print-report-brand"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: LOGO_ICON_SM,
+    alt: "LeadForge",
+    className: "print-report-logo"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "print-report-brand-name"
+  }, "LeadForge")), /*#__PURE__*/React.createElement("h1", {
+    className: "print-report-title"
+  }, "Executive Dashboard Report"), /*#__PURE__*/React.createElement("div", {
+    className: "print-report-meta"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Scope"), isScoped ? selectedRep : "Full Team"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Period"), timeframe.mode === "monthly" ? "Monthly" : "Yearly", " · ", periodLabel), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Currency"), currency), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Generated by"), currentUser && currentUser.name || "—"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", null, "Generated on"), printMeta ? printMeta.generatedAt : new Date().toLocaleString()))), /*#__PURE__*/React.createElement("div", {
     className: "topbar"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
     className: "page-title"
   }, isScoped ? "My Dashboard" : "Executive Dashboard"), /*#__PURE__*/React.createElement("div", {
     className: "page-sub"
-  }, isScoped ? `Scoped to ${selectedRep}` : "Full team", " · ", timeframe.mode === "monthly" ? "Monthly view" : "Yearly view"))), /*#__PURE__*/React.createElement(AlertsBanner, {
+  }, isScoped ? `Scoped to ${selectedRep}` : "Full team", " · ", timeframe.mode === "monthly" ? "Monthly view" : "Yearly view")), !isScoped && /*#__PURE__*/React.createElement("div", {
+    className: "panel-actions no-print"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: handleExportPdf,
+    disabled: printing,
+    title: "Export this dashboard as a structured PDF report"
+  }, /*#__PURE__*/React.createElement(IconDownload, null), "\xA0 ", printing ? "Preparing…" : "Export to PDF"))), /*#__PURE__*/React.createElement(AlertsBanner, {
     leads: scopedLeads,
     reps: reps,
     onJumpToLead: onJumpToLead
@@ -14414,7 +14555,8 @@ function App() {
     currency: currency,
     rate: rate,
     onJumpToLead: jumpToLead,
-    showTeamBreakdown: isAdmin
+    showTeamBreakdown: isAdmin,
+    currentUser: currentUser
   }), tab === "pipeline" && /*#__PURE__*/React.createElement(LeadPipeline, {
     leads: leads,
     setLeads: setLeads,
