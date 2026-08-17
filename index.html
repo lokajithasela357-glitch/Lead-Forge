@@ -1116,19 +1116,22 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     85%{ opacity:1; }
     100%{ opacity:0; transform:translateY(-40px) scale(0.4); }
   }
+  /* Deep near-black backdrop (darker than the rest of the app's navy
+     surfaces) so the logo -- and its own ambient glow -- reads as the
+     brightest thing on screen the instant the app opens. */
   .splash{
     position:fixed; inset:0; z-index:1000;
     background:
-      radial-gradient(900px 600px at 50% 30%, rgba(46,134,193,0.20), transparent 60%),
-      radial-gradient(700px 500px at 70% 80%, rgba(29,204,211,0.14), transparent 60%),
-      #0B0F17;
+      radial-gradient(900px 600px at 50% 30%, rgba(46,134,193,0.12), transparent 60%),
+      radial-gradient(700px 500px at 70% 80%, rgba(29,204,211,0.08), transparent 60%),
+      #030509;
     display:flex; align-items:center; justify-content:center;
     overflow:hidden;
   }
   .splash.leaving{ animation:splashFadeOut .5s ease both; pointer-events:none; }
   .splash-glow{
     position:absolute; width:640px; height:640px; border-radius:50%;
-    background:radial-gradient(circle, rgba(46,134,193,0.22), transparent 70%);
+    background:radial-gradient(circle, rgba(46,134,193,0.26), transparent 70%);
     filter:blur(10px);
   }
   .splash-content{ position:relative; display:flex; flex-direction:column; align-items:center; gap:18px; z-index:2; }
@@ -1149,7 +1152,19 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .wm-lead{ color:#ffffff; }
   .wm-forge{ background:linear-gradient(135deg,#2E86C1,#9FF4F9); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  /* The lockup image bakes the emblem icon + "LEADFORGE" wordmark into one
+     flat asset, with the icon occupying the left ~20.6% of its width
+     (measured directly from the source crop: a 191px-wide icon region
+     inside a 928px-wide lockup region). Centering this tagline under the
+     FULL image (icon+text) would visually misalign it with the wordmark
+     text itself, since the icon has no counterpart shape on the right --
+     so instead we give the tagline the same reference width as the logo
+     and pad its left side by that same ~20.6%, keeping the remaining
+     (icon-free) portion centered directly under "LEADFORGE". */
   .splash-tagline{
+    width:min(360px, 78vw); box-sizing:border-box;
+    padding-left:calc(0.2058 * min(360px, 78vw));
+    text-align:center;
     font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
     color:var(--text-muted); animation:splashWordmarkIn .6s ease .3s both;
   }
@@ -4533,9 +4548,7 @@ function SplashScreen({
     alt: "LeadForge"
   }), /*#__PURE__*/React.createElement("div", {
     className: "splash-tagline"
-  }, "ACCELERATE & CLOSE"), /*#__PURE__*/React.createElement("div", {
-    className: "splash-credit"
-  }, "Developed by Sanka Manampery")), /*#__PURE__*/React.createElement("button", {
+  }, "ACCELERATE & CLOSE")), /*#__PURE__*/React.createElement("button", {
     className: "splash-skip",
     onClick: () => setLeaving(true)
   }, "Skip Intro"));
