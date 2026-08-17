@@ -1275,6 +1275,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .login-form{ display:flex; flex-direction:column; gap:14px; }
   .login-field{ display:flex; flex-direction:column; gap:6px; font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.02em; }
   .login-field .input{ text-transform:none; font-weight:400; padding:10px 12px; }
+  .login-field-optional{ text-transform:none; font-weight:500; letter-spacing:0; color:var(--text-muted); opacity:.75; }
   .login-error{
     background:rgba(251,88,88,0.12); border:1px solid rgba(251,88,88,0.35);
     color:var(--status-critical); font-size:12.5px; font-weight:600;
@@ -1400,14 +1401,23 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     0%,100%{ transform:scale(1); opacity:.6; }
     50%{ transform:scale(1.16); opacity:0; }
   }
-  .profile-fab{
+  .profile-fab-wrap{
     position:fixed; top:20px; right:30px; z-index:150;
-    width:46px; height:46px; border-radius:50%; padding:0;
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+  }
+  .profile-fab{
+    width:46px; height:46px; border-radius:50%; padding:0; flex:0 0 auto;
     display:flex; align-items:center; justify-content:center;
     background:linear-gradient(145deg, rgba(0,136,255,0.24), rgba(11,15,23,0.94));
     border:1px solid rgba(0,136,255,0.42); cursor:pointer; font-family:inherit;
     box-shadow:0 0 0 1px rgba(0,136,255,0.14), 0 10px 26px -10px rgba(0,136,255,0.55);
     transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .profile-fab-company{
+    font-size:10px; font-weight:700; color:var(--text-secondary);
+    background:var(--surface-1); border:1px solid var(--border); border-radius:20px;
+    padding:2px 9px; max-width:130px; text-align:center;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .profile-fab:hover{
     transform:translateY(-2px) scale(1.05);
@@ -1982,9 +1992,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     .mobile-topbar-logo{ width:26px; height:26px; border-radius:7px; object-fit:contain; flex:0 0 auto; }
     .mobile-topbar-title{ font-size:14.5px; font-weight:800; }
 
-    .profile-fab{ top:13px; right:14px; width:34px; height:34px; }
+    .profile-fab-wrap{ top:13px; right:14px; gap:3px; }
+    .profile-fab{ width:34px; height:34px; }
     .profile-fab-avatar{ width:25px; height:25px; font-size:10px; }
     .profile-fab-ring{ inset:-4px; }
+    .profile-fab-company{ display:none; }
 
     .app-shell{ display:block; }
 
@@ -2500,7 +2512,8 @@ function profileFromRow(r) {
     isActive: r.is_active !== false,
     lastLogin: r.last_login || null,
     phone: r.phone || "",
-    avatarUrl: r.avatar_data || null
+    avatarUrl: r.avatar_data || null,
+    company: r.company || ""
   };
 }
 function buFromRow(r) {
@@ -4424,6 +4437,7 @@ function LoginScreen({
   const [password, setPassword] = useState("");
   const [rememberEmail, setRememberEmail] = useState(true);
   const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -4497,7 +4511,7 @@ function LoginScreen({
     setError("");
     setPending(true);
     try {
-      const res = await onRegister(name, email, password);
+      const res = await onRegister(name, email, password, company);
       if (!res.ok) {
         setError(res.message || "Could not create your account.");
         return;
@@ -4704,6 +4718,19 @@ function LoginScreen({
     value: email,
     onChange: e => {
       setEmail(e.target.value);
+      setError("");
+    }
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "login-field"
+  }, "Company / Organization ", /*#__PURE__*/React.createElement("span", {
+    className: "login-field-optional"
+  }, "(optional)"), /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    autoComplete: "organization",
+    placeholder: "Acme Robotics",
+    value: company,
+    onChange: e => {
+      setCompany(e.target.value);
       setError("");
     }
   })), /*#__PURE__*/React.createElement("label", {
@@ -5872,6 +5899,46 @@ function playMessageChime() {
   }
 }
 
+// Native OS/desktop notifications for incoming messages — this is what
+// surfaces a new DM or announcement while LeadForge is open but not the
+// focused window (minimized, on another virtual desktop/tab, etc.), on top
+// of the in-app chime. Works the same way in a regular browser tab and in
+// the Electron desktop build (Chromium's Notification API is available in
+// both — nothing extra to wire up in main.js for a basic notification).
+// This can only ever reach someone while the app process is actually
+// running somewhere; for a real "notify me even when LeadForge isn't open
+// at all" story, the other half of the story is an email sent server-side
+// (see the messages table's email-on-insert trigger/Edge Function).
+function requestNotificationPermission() {
+  try {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") Notification.requestPermission();
+  } catch (e) {
+    // Notification API missing/blocked — nothing to do, just skip it.
+  }
+}
+function notifyDesktop(title, body) {
+  try {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    // silent:true — the existing playMessageChime() already covers sound,
+    // so this only needs to add a visible OS-level toast, not double up audio.
+    const n = new Notification(title, {
+      body,
+      icon: LOGO_ICON_SM,
+      silent: true
+    });
+    n.onclick = () => {
+      try {
+        window.focus();
+      } catch (e) {}
+      n.close();
+    };
+  } catch (e) {
+    // Never let a notification failure break message delivery.
+  }
+}
+
 // Chat file attachments — uploaded to a dedicated Supabase Storage bucket
 // ("chat-attachments") rather than embedded as base64 text directly on the
 // message row.
@@ -6140,6 +6207,7 @@ function MessageCenter({
   const [threadAttaching, setThreadAttaching] = useState(false);
   const [threadSending, setThreadSending] = useState(false);
   const wrapRef = useRef(null);
+  const threadScrollRef = useRef(null);
   useEffect(() => {
     if (!open) return;
     function onDocClick(e) {
@@ -6177,6 +6245,19 @@ function MessageCenter({
     const c = selectedContact ? conversations.find(c => c.person.name === selectedContact) : null;
     return c ? c.thread : [];
   }, [conversations, selectedContact]);
+
+  // Always land on the newest message, in both directions — opening a
+  // thread jumps straight to the bottom (the most recent messages) instead
+  // of the top, and every new message (sent by me, or received live over
+  // Realtime) auto-scrolls the pane down again so nobody has to manually
+  // scroll to see what just came in. `selectedThread.length` alone would
+  // miss an edit that doesn't change the count, but count changes cover
+  // every real "new message" case (send/receive) this is meant for.
+  useEffect(() => {
+    const el = threadScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [selectedContact, selectedThread.length]);
   const dmUnreadTotal = useMemo(() => conversations.reduce((s, c) => s + c.unread, 0), [conversations]);
 
   // Team-wide announcements — Admin-only to send, visible to everyone
@@ -6485,7 +6566,8 @@ function MessageCenter({
       background: "var(--accent-blue)"
     }
   }, initials(selectedContact)), selectedContact), /*#__PURE__*/React.createElement("div", {
-    className: "message-list message-thread"
+    className: "message-list message-thread",
+    ref: threadScrollRef
   }, selectedThread.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-feed"
   }, "No messages with ", selectedContact, " yet — say hello."), selectedThread.map(m => renderThreadBubble(m, myName))), /*#__PURE__*/React.createElement("div", {
@@ -6601,7 +6683,9 @@ function ProfileFab({
   if (!user) return null;
   const target = isAdmin ? "users" : "settings";
   const label = isAdmin ? "User Management" : "My Profile";
-  return /*#__PURE__*/React.createElement("button", {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "profile-fab-wrap"
+  }, /*#__PURE__*/React.createElement("button", {
     className: "profile-fab" + (isAdmin ? " is-admin" : ""),
     onClick: () => setTab(target),
     title: label,
@@ -6614,7 +6698,10 @@ function ProfileFab({
     alt: user.name || "Profile"
   }) : /*#__PURE__*/React.createElement("span", {
     className: "profile-fab-avatar"
-  }, initials(user.name)));
+  }, initials(user.name))), user.company && /*#__PURE__*/React.createElement("div", {
+    className: "profile-fab-company",
+    title: user.company
+  }, user.company));
 }
 
 /* ---------------------------------------------------------------------- */
@@ -10939,11 +11026,12 @@ function AccountSettings({
 }) {
   const [name, setName] = useState(currentUser.name || "");
   const [phone, setPhone] = useState(currentUser.phone || "");
+  const [company, setCompany] = useState(currentUser.company || "");
   const [avatarPreview, setAvatarPreview] = useState(currentUser.avatarUrl || null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(null); // { type: "ok" | "error", text }
   const fileInputRef = useRef(null);
-  const dirty = name.trim() !== (currentUser.name || "").trim() || phone.trim() !== (currentUser.phone || "").trim() || (avatarPreview || null) !== (currentUser.avatarUrl || null);
+  const dirty = name.trim() !== (currentUser.name || "").trim() || phone.trim() !== (currentUser.phone || "").trim() || company.trim() !== (currentUser.company || "").trim() || (avatarPreview || null) !== (currentUser.avatarUrl || null);
   function pickPhoto() {
     if (fileInputRef.current) fileInputRef.current.click();
   }
@@ -11012,6 +11100,7 @@ function AccountSettings({
     setSaving(true);
     setStatus(null);
     const trimmedPhone = phone.trim();
+    const trimmedCompany = company.trim();
     const {
       error
     } = await sbWriteOrQueue({
@@ -11020,6 +11109,7 @@ function AccountSettings({
       row: {
         name: trimmedName,
         phone: trimmedPhone,
+        company: trimmedCompany,
         avatar_data: avatarPreview
       },
       matchColumn: "id",
@@ -11037,6 +11127,7 @@ function AccountSettings({
       ...cu,
       name: trimmedName,
       phone: trimmedPhone,
+      company: trimmedCompany,
       avatarUrl: avatarPreview
     } : cu);
     if (setProfiles) {
@@ -11044,6 +11135,7 @@ function AccountSettings({
         ...p,
         name: trimmedName,
         phone: trimmedPhone,
+        company: trimmedCompany,
         avatarUrl: avatarPreview
       } : p));
     }
@@ -11126,6 +11218,11 @@ function AccountSettings({
     value: phone,
     onChange: e => setPhone(e.target.value),
     placeholder: "+1 555 000 0000"
+  })), /*#__PURE__*/React.createElement("label", null, "Company / Organization", /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    value: company,
+    onChange: e => setCompany(e.target.value),
+    placeholder: "Acme Robotics"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "settings-row"
   }, /*#__PURE__*/React.createElement("div", {
@@ -13828,6 +13925,11 @@ function App() {
   // their own messages_select policy already allows them to see.
   useEffect(() => {
     if (!currentUser) return;
+    // Ask for OS notification permission once per session (a no-op if
+    // already granted/denied) — needs to happen somewhere that's guaranteed
+    // to run after login, and this effect already re-runs exactly once per
+    // signed-in user.
+    requestNotificationPermission();
     const channel = sb.channel("messages-live-" + currentUser.id).on("postgres_changes", {
       event: "INSERT",
       schema: "public",
@@ -13838,12 +13940,17 @@ function App() {
       // they hit Send — skip it here so it doesn't show up twice.
       setMessages(ms => {
         if (ms.some(m => m.id === incoming.id)) return ms;
-        // Play the notification chime only for a message someone ELSE
-        // sent — the sender already heard it fire the instant they hit
-        // Send, so this is what makes an incoming message (a DM or an
-        // announcement) actually announce itself with zero user action.
+        // Play the notification chime + pop an OS notification only for a
+        // message someone ELSE sent — the sender already heard/saw it fire
+        // the instant they hit Send, so this is what makes an incoming
+        // message (a DM or an announcement) actually announce itself with
+        // zero user action, even if LeadForge isn't the focused window.
         const myOwnName = currentUser.role === "Admin" ? currentUser.name : currentUser.repName || "";
-        if (incoming.senderName !== myOwnName) playMessageChime();
+        if (incoming.senderName !== myOwnName) {
+          playMessageChime();
+          const isAnnouncement = incoming.recipient === "All";
+          notifyDesktop(isAnnouncement ? `New announcement from ${incoming.senderName}` : `New message from ${incoming.senderName}`, incoming.body || (incoming.attachment ? `📎 ${incoming.attachment.name}` : "Sent an attachment"));
+        }
         return [incoming, ...ms];
       });
     }).on("postgres_changes", {
@@ -13968,9 +14075,10 @@ function App() {
   // rep — an Admin links them to a pipeline rep from User Management. (The
   // very first account ever created becomes Admin automatically — see the
   // handle_new_user() trigger in the SQL setup script.)
-  async function attemptRegister(name, email, password) {
+  async function attemptRegister(name, email, password, company) {
     const n = String(name || "").trim();
     const e = String(email || "").trim().toLowerCase();
+    const c = String(company || "").trim();
     if (!n || !e || !password) return {
       ok: false,
       message: "Please fill in your name, email, and a password."
@@ -13983,7 +14091,8 @@ function App() {
       password,
       options: {
         data: {
-          name: n
+          name: n,
+          company: c
         },
         emailRedirectTo: getAuthRedirectTo()
       }
