@@ -2535,11 +2535,22 @@ const LEAD_FIELD_TO_COLUMN = {
   archivedAt: "archived_at",
   deletedAt: "deleted_at"
 };
+// Postgres `date` columns reject an empty string outright ("invalid input
+// syntax for type date: \"\"") -- they need SQL NULL for "no date set".
+// leadToRow() (full-row inserts) already guards this via `|| null`, but
+// partialLeadToRow() (used for every save-lead / drag-stage-change update)
+// used to pass whatever the draft held straight through. Target Close Date
+// and Next Follow-Up Date are both optional and commonly left blank, and
+// LeadDrawer's draft defaults them to "" (not null) -- so saving ANY lead
+// with either field empty sent target_close_date/next_follow_up_date as ""
+// and Postgres rejected the entire update, silently discarding every other
+// edited field in the same save (including Deal Value) along with it.
+const LEAD_DATE_COLUMNS = new Set(["target_close_date", "next_follow_up_date", "closed_date"]);
 function partialLeadToRow(patch) {
   const row = {};
   for (const k of Object.keys(patch)) {
     const col = LEAD_FIELD_TO_COLUMN[k];
-    if (col) row[col] = patch[k];
+    if (col) row[col] = LEAD_DATE_COLUMNS.has(col) && patch[k] === "" ? null : patch[k];
   }
   row.updated_at = new Date().toISOString();
   return row;
