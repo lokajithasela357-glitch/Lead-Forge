@@ -392,6 +392,63 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     /* Reusable glow tokens for the "electric" hover/focus effect */
     --glow-cyan-sm: 0 0 0 1px rgba(46,134,193,0.35), 0 0 16px -2px rgba(29,204,211,0.45);
     --glow-cyan-lg: 0 0 0 1px rgba(46,134,193,0.4), 0 0 32px -4px rgba(29,204,211,0.55);
+
+    /* The sidebar (and its small-screen equivalent, the mobile topbar) keep
+       the same dark, translucent rail look in BOTH themes -- a fixed dark
+       accent strip next to a theme-following content area is a deliberate,
+       common pattern (Notion, Linear, Vercel, etc. all do this) rather than
+       an oversight. These tokens are intentionally NOT overridden in the
+       [data-theme="light"] block below, so anything styled with them always
+       reads correctly against that constant dark rail regardless of theme. */
+    --sidebar-surface-1: rgba(255,255,255,0.05);
+    --sidebar-surface-2: rgba(255,255,255,0.09);
+    --sidebar-border: rgba(255,255,255,0.10);
+    --sidebar-border-strong: rgba(255,255,255,0.20);
+    --sidebar-text-primary:#F4F8FC;
+    --sidebar-text-secondary:#C7CED9;
+    --sidebar-text-muted:#8A93A6;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Light theme -- overrides the core surface/text/border tokens above. */
+  /* Everything built on top of these variables (cards, tables, forms,   */
+  /* the login card, etc.) re-themes automatically; the sidebar/mobile   */
+  /* topbar rail intentionally stays dark via the fixed --sidebar-* set  */
+  /* above, and the splash and login-brand-panel keep their own fixed    */
+  /* dark brand backgrounds for the same reason.                        */
+  /* ------------------------------------------------------------------ */
+  [data-theme="light"]{
+    --page:#F4F6F9;
+    --surface-1:#FFFFFF;
+    --surface-2:#F0F2F6;
+    --surface-3:#E6E9F0;
+
+    --text-primary:#141A2A;
+    --text-secondary:#4B5670;
+    --text-muted:#7C8AA6;
+
+    --border:rgba(20,40,80,0.10);
+    --border-strong:rgba(20,40,80,0.22);
+    --grid:#E6E9F0;
+    --baseline:#D7DCE6;
+
+    --shadow-card: 0 1px 0 0 rgba(20,40,80,0.03) inset, 0 14px 32px -16px rgba(20,40,80,0.18);
+    --shadow-card-hover: 0 1px 0 0 rgba(20,40,80,0.04) inset, 0 20px 44px -16px rgba(20,40,80,0.22);
+  }
+  [data-theme="light"] body{
+    background:
+      radial-gradient(1100px 620px at 12% -8%, rgba(46,134,193,0.09), transparent 60%),
+      radial-gradient(900px 560px at 88% 6%, rgba(29,204,211,0.07), transparent 62%),
+      var(--page);
+  }
+  [data-theme="light"] ::-webkit-scrollbar-thumb{ background:var(--surface-3); }
+  [data-theme="light"] ::-webkit-scrollbar-thumb:hover{ background:#c7cde0; }
+  [data-theme="light"] ::selection{ background:rgba(46,134,193,0.18); }
+  [data-theme="light"] .login-shell{
+    background:
+      radial-gradient(1100px 620px at 12% -8%, rgba(46,134,193,0.12), transparent 60%),
+      radial-gradient(900px 560px at 88% 6%, rgba(29,204,211,0.09), transparent 62%),
+      var(--page);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--page);}
@@ -437,8 +494,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     font-weight:700;font-size:15px;color:#fff;flex:0 0 auto;
   }
   .brand-text{ line-height:1.1; }
-  .brand-text .t1{ font-size:13px; font-weight:700; color:var(--text-primary); }
-  .brand-text .t2{ font-size:11px; color:var(--text-muted); }
+  .brand-text .t1{ font-size:13px; font-weight:700; color:var(--sidebar-text-primary); }
+  .brand-text .t2{ font-size:11px; color:var(--sidebar-text-muted); }
 
   /* Brand wordmark — used for every "LeadForge" heading (sidebar, login
      screen, mobile topbar) so the product name always reads in the same
@@ -458,11 +515,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     position:relative;
     display:flex; align-items:center; gap:11px;
     padding:10px 12px; border-radius:10px;
-    color:var(--text-secondary); font-size:13.5px; font-weight:500;
+    color:var(--sidebar-text-secondary); font-size:13.5px; font-weight:500;
     cursor:pointer; border:1px solid transparent; user-select:none;
     transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
   }
-  .nav-item:hover{ background:var(--surface-2); color:var(--text-primary); transform:translateX(1px); }
+  .nav-item:hover{ background:var(--sidebar-surface-2); color:var(--sidebar-text-primary); transform:translateX(1px); }
   .nav-item.active{
     background:linear-gradient(135deg, rgba(46,134,193,0.20), rgba(167,139,250,0.14));
     border-color:rgba(46,134,193,0.38);
@@ -475,18 +532,18 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .nav-icon{ width:18px; height:18px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:inherit; }
   .nav-item.active .nav-icon svg{ stroke:var(--accent-blue); }
-  .nav-item .nav-icon svg{ stroke:var(--text-muted); transition:stroke .15s ease; }
-  .nav-item:hover .nav-icon svg{ stroke:var(--text-primary); }
+  .nav-item .nav-icon svg{ stroke:var(--sidebar-text-muted); transition:stroke .15s ease; }
+  .nav-item:hover .nav-icon svg{ stroke:var(--sidebar-text-primary); }
   .nav-item.active .nav-icon svg{ stroke:var(--accent-blue); }
 
-  .sidebar-footer{ margin-top:auto; padding-top:14px; border-top:1px solid var(--border); }
+  .sidebar-footer{ margin-top:auto; padding-top:14px; border-top:1px solid var(--sidebar-border); }
   .reset-btn{
-    width:100%; background:transparent; border:1px solid var(--border);
-    color:var(--text-muted); font-size:11.5px; padding:8px 10px;
+    width:100%; background:transparent; border:1px solid var(--sidebar-border);
+    color:var(--sidebar-text-muted); font-size:11.5px; padding:8px 10px;
     border-radius:8px; cursor:pointer; text-align:left;
     transition:color .15s ease, border-color .15s ease, background .15s ease;
   }
-  .reset-btn:hover{ color:var(--text-secondary); border-color:var(--border-strong); background:var(--surface-2); }
+  .reset-btn:hover{ color:var(--sidebar-text-secondary); border-color:var(--sidebar-border-strong); background:var(--sidebar-surface-2); }
 
   /* Main */
   .main{ flex:1; min-width:0; padding:26px 32px 40px; max-width:1400px; }
@@ -505,16 +562,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   /* Currency control */
-  .currency-bar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .currency-bar{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .rate-group{
     display:flex; align-items:center; gap:6px;
     background:var(--surface-1); border:1px solid var(--border);
-    border-radius:99px; padding:5px 6px 5px 13px;
+    border-radius:99px; padding:5px 6px 5px 11px;
   }
   .rate-label{ font-size:11.5px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
   .currency-active-label{ font-size:11px; color:var(--text-muted); font-weight:600; white-space:nowrap; }
   .rate-input{
-    width:78px; padding:5px 8px; font-size:12.5px; border-radius:99px;
+    width:70px; padding:5px 8px; font-size:12.5px; border-radius:99px;
     background:var(--surface-2); text-align:right;
   }
   .seg-toggle{
@@ -523,7 +580,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .seg-btn{
     background:transparent; border:none; color:var(--text-muted);
-    font-size:11.5px; font-weight:700; padding:6px 14px; border-radius:99px;
+    font-size:11.5px; font-weight:700; padding:6px 11px; border-radius:99px;
     cursor:pointer; transition:background .15s ease, color .15s ease, box-shadow .15s ease;
   }
   .seg-btn:hover{ color:var(--text-secondary); }
@@ -873,11 +930,11 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .sidebar.collapsed .nav-item.active::before{ display:none; }
   .collapse-btn{
     width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
-    background:transparent; border:1px solid var(--border); color:var(--text-muted);
+    background:transparent; border:1px solid var(--sidebar-border); color:var(--sidebar-text-muted);
     font-size:11.5px; font-weight:700; padding:9px 10px; border-radius:8px; cursor:pointer;
     transition:color .15s ease, border-color .15s ease, background .15s ease;
   }
-  .collapse-btn:hover{ color:var(--text-secondary); border-color:var(--border-strong); background:var(--surface-2); }
+  .collapse-btn:hover{ color:var(--sidebar-text-secondary); border-color:var(--sidebar-border-strong); background:var(--sidebar-surface-2); }
 
   /* "New version available" banner — shown across every tab, above the
      header toolbar, whenever the signed-in user's build is behind the
@@ -909,15 +966,23 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   /* Header toolbar */
   .header-toolbar{
     display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
-    gap:14px; margin-bottom:24px; padding-bottom:18px; border-bottom:1px solid var(--border);
+    gap:8px; margin-bottom:24px; padding-bottom:18px; border-bottom:1px solid var(--border);
     /* Reserve room on the right so toolbar content never sits under the
-       fixed .profile-fab pinned to the viewport's top-right corner. */
+       fixed .profile-fab pinned to the viewport's top-right corner (30px
+       offset + 46px wide + its ~6px hover ring) -- this needs to stay at
+       64px or the toolbar's rightmost icon visually collides with it. */
     padding-right:64px;
   }
   @media (max-width:860px){
     .header-toolbar{ padding-right:0; }
   }
-  .header-toolbar-left, .header-toolbar-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .header-toolbar-left, .header-toolbar-right{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  /* Refresh / theme-toggle / messages sit together as one tight cluster of
+     icon-only buttons -- a single divider before the group (separating it
+     from the currency control) is enough visual grouping; extra dividers
+     or wide gaps between icons that are already self-evidently a related
+     set just look like clutter. */
+  .toolbar-icon-group{ display:flex; align-items:center; gap:2px; }
   .toolbar-divider{ width:1px; height:24px; background:var(--border); flex:0 0 auto; }
   .back-btn{
     display:flex; align-items:center; justify-content:center; flex:0 0 auto;
@@ -937,9 +1002,27 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .refresh-btn:disabled{ cursor:default; opacity:.75; }
   .refresh-btn svg{ width:15px; height:15px; }
   .refresh-btn.spinning svg{ animation:messageAttachSpin 0.8s linear infinite; }
-  .header-select{ min-width:150px; }
-  .timeframe-group{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .theme-toggle-btn{
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+    width:34px; height:34px; border-radius:10px; cursor:pointer; font-family:inherit;
+    background:var(--surface-1); border:1px solid var(--border); color:var(--text-secondary);
+    transition:background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+  }
+  .theme-toggle-btn:hover{ background:var(--surface-2); border-color:var(--border-strong); color:var(--accent-orange); }
+  .theme-toggle-btn:active{ transform:scale(0.94); }
+  .theme-toggle-btn svg{ width:15px; height:15px; }
+  /* Same button, repositioned as a fixed top-right control on the login/
+     splash-adjacent screen, since there's no header toolbar to live in
+     before signing in. */
+  .login-theme-toggle{ position:absolute; top:20px; right:20px; z-index:5; }
+  .header-select{ min-width:128px; }
+  .timeframe-group{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .timeframe-anchor{ min-width:118px; }
+  /* The year dropdown never needs a month name's worth of width -- giving
+     it its own narrower minimum (instead of sharing .timeframe-anchor's
+     118px, sized for "September") is one of several small trims that keep
+     the whole header toolbar on one line at common laptop widths. */
+  .timeframe-anchor-year{ min-width:82px; }
   .backup-group{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
   /* Rep badges */
@@ -1492,9 +1575,20 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     0%,100%{ transform:scale(1); opacity:.6; }
     50%{ transform:scale(1.16); opacity:0; }
   }
+  /* Fixed to exactly the circle's own footprint (46x46) -- NOT a flex
+     column sized around its widest child. The company label below it is
+     absolutely positioned (see .profile-fab-company) instead of flowing
+     in-layout, specifically so a long company name (up to its 130px
+     max-width) can never widen this box and silently eat into the space
+     the header toolbar reserves for it on the right (see .header-toolbar's
+     padding-right) -- that mismatch is exactly what let toolbar icons
+     collide with this button when a long company name was present. */
   .profile-fab-wrap{
     position:fixed; top:20px; right:30px; z-index:150;
-    display:flex; flex-direction:column; align-items:center; gap:5px;
+    /* No explicit width/height and no flex layout here on purpose -- a
+       fixed-position box with no width shrinks to fit its one in-flow
+       child (the button), at whatever size that button actually is
+       (46px desktop, 34px on the mobile override below). */
   }
   .profile-fab{
     width:46px; height:46px; border-radius:50%; padding:0; flex:0 0 auto;
@@ -1505,6 +1599,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   }
   .profile-fab-company{
+    position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:5px;
     font-size:10px; font-weight:700; color:var(--text-secondary);
     background:var(--surface-1); border:1px solid var(--border); border-radius:20px;
     padding:2px 9px; max-width:130px; text-align:center;
@@ -1736,11 +1831,17 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   /* connectivity indicator below, same footer, same visual weight.          */
   /* ---------------------------------------------------------------- */
 
+  /* Now a real <button> (opens Messages when clicked) rather than a plain
+     div, so it needs the usual button-reset properties on top of its
+     existing look. */
   .online-users-badge{
     display:flex; align-items:center; gap:8px; padding:8px 10px; margin-bottom:8px;
-    border-radius:8px; font-size:12px; font-weight:700; border:1px solid var(--border);
-    background:var(--surface-1); color:var(--text-secondary);
+    border-radius:8px; font-size:12px; font-weight:700; border:1px solid var(--sidebar-border);
+    background:var(--sidebar-surface-1); color:var(--sidebar-text-secondary);
+    width:100%; font-family:inherit; text-align:left; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
   }
+  .online-users-badge:hover{ border-color:var(--sidebar-border-strong); background:var(--sidebar-surface-2); }
   .online-dot{
     flex:0 0 auto; width:8px; height:8px; border-radius:50%;
     background:var(--status-good); box-shadow:0 0 0 3px rgba(47,214,108,0.18);
@@ -1751,7 +1852,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     display:flex; align-items:center; justify-content:center;
     width:22px; height:22px; border-radius:50%; flex:0 0 auto;
     background:rgba(46,134,193,0.18); color:var(--accent-blue);
-    border:2px solid var(--surface-1); font-size:9.5px; font-weight:800;
+    border:2px solid var(--sidebar-surface-1); font-size:9.5px; font-weight:800;
     margin-left:-7px;
   }
   .online-avatar:first-child{ margin-left:0; }
@@ -1768,8 +1869,8 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   .sync-status{
     display:flex; align-items:center; gap:8px; padding:8px 10px; margin-bottom:10px;
-    border-radius:8px; font-size:12px; font-weight:700; border:1px solid var(--border);
-    background:var(--surface-1);
+    border-radius:8px; font-size:12px; font-weight:700; border:1px solid var(--sidebar-border);
+    background:var(--sidebar-surface-1);
   }
   .sync-status-icon{ display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
   .sync-status-icon.spin{ animation:syncSpin 1.1s linear infinite; }
@@ -1951,7 +2052,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     .home-grid{ grid-template-columns:1fr; }
     .home-card{ padding:16px; gap:12px; }
   }
-  .message-item-to{ font-size:11px; font-weight:700; color:var(--text-secondary); }
+  .message-item-to{
+    font-size:11px; font-weight:700; color:var(--text-secondary);
+    min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
   .message-item-time{ font-size:10.5px; color:var(--text-muted); white-space:nowrap; }
   .message-item-body{ font-size:13px; color:var(--text-primary); line-height:1.5; white-space:pre-wrap; }
   .message-item-reads{ font-size:10.5px; color:var(--text-muted); margin-top:6px; font-weight:700; }
@@ -1986,9 +2090,28 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     font-size:12px; font-weight:800; color:#fff; letter-spacing:.02em;
   }
   .message-conv-info{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
-  .message-conv-name{ font-size:13px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; }
+  /* Top line: name + role tag + unread dot on the left, timestamp pinned to
+     the right -- kept on its OWN line (separate from the preview text
+     below) specifically so a long name and the timestamp never compete for
+     the same horizontal space. Previously they were flex siblings on one
+     line with no white-space:nowrap anywhere, so a longer name (or the
+     "(Sales Rep)"/"(Admin)" tag) would wrap mid-word once squeezed by the
+     timestamp -- this restructure plus the nowrap/ellipsis rules below fix
+     that: the name truncates with an ellipsis if it's ever too long, while
+     the tag, dot, and timestamp always stay intact on one line. */
+  .message-conv-top-line{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .message-conv-name{
+    font-size:13px; font-weight:700; color:var(--text-primary);
+    display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 auto;
+  }
+  .message-conv-name-text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .message-conv-name .tag-muted{ white-space:nowrap; flex:0 0 auto; }
+  /* .message-conv-name already uses flex `gap` for spacing between its
+     children, so the dot's own margin-left (needed elsewhere, where it
+     isn't inside a gapped flex row) would double up the spacing here. */
+  .message-conv-name .message-new-dot{ margin-left:0; }
   .message-conv-preview{ font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .message-conv-time{ flex:0 0 auto; font-size:10.5px; color:var(--text-muted); white-space:nowrap; }
+  .message-conv-time{ flex:0 0 auto; margin-left:auto; font-size:10.5px; color:var(--text-muted); white-space:nowrap; }
 
   /* Admin's Team Inbox — a single open conversation. */
   .message-conv-open{ display:flex; flex-direction:column; }
@@ -2000,6 +2123,10 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .message-conv-open-head{
     display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:var(--text-primary); margin-bottom:12px;
   }
+  /* Truncates a long contact name with an ellipsis instead of letting it
+     wrap or squeeze the "Delete conversation" button out of the header --
+     same fix as the conversation list row above. */
+  .message-conv-open-name{ min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* Deletes the WHOLE conversation (every message, both directions) with
      this contact -- available to any user for their own threads, not just
      Admins (see deleteThread in app.jsx / the messages_delete RLS policy).
@@ -2088,16 +2215,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
       border-radius:12px;
     }
     .mobile-menu-btn{
-      background:var(--surface-2); border:1px solid var(--border); color:var(--text-primary);
+      background:var(--sidebar-surface-2); border:1px solid var(--sidebar-border); color:var(--sidebar-text-primary);
       width:36px; height:36px; border-radius:9px; flex:0 0 auto;
       display:flex; align-items:center; justify-content:center; cursor:pointer;
       transition:background .15s ease;
     }
-    .mobile-menu-btn:hover{ background:var(--surface-3); }
+    .mobile-menu-btn:hover{ background:var(--sidebar-border-strong); }
     .mobile-topbar-logo{ width:26px; height:26px; border-radius:7px; object-fit:contain; flex:0 0 auto; }
     .mobile-topbar-title{ font-size:14.5px; font-weight:800; }
 
-    .profile-fab-wrap{ top:13px; right:14px; gap:3px; }
+    .profile-fab-wrap{ top:13px; right:14px; }
     .profile-fab{ width:34px; height:34px; }
     .profile-fab-avatar{ width:25px; height:25px; font-size:10px; }
     .profile-fab-ring{ inset:-4px; }
@@ -2236,7 +2363,6 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
     @page{ size:landscape; margin:14mm 10mm; }
   }
 </style>
-
 <body>
 <div id="root"></div>
 <script>
@@ -2394,6 +2520,26 @@ function clearRememberedEmail() {
   } catch (e) {/* non-fatal */}
 }
 
+// Dark/light theme preference. Falls back to the OS-level preference on a
+// first-ever visit (no saved choice yet), and to dark — the app's native
+// look — if that can't be read either.
+const THEME_KEY = "leadforge_theme_v1";
+function loadTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch (e) {/* non-fatal */}
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
+  } catch (e) {/* non-fatal */}
+  return "dark";
+}
+function saveTheme(theme) {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch (e) {/* non-fatal */}
+}
+
 /* ---------------------------------------------------------------------- */
 /* Face ID biometric login has been removed — see chat history if it ever  */
 /* needs to be reintroduced. It relied on face-api.js loaded from a public */
@@ -2469,6 +2615,25 @@ function setOfflineQueue(q) {
       fn(q);
     } catch (e) {/* ignore listener errors */}
   });
+}
+// A queued change the SERVER actively rejected once we came back online
+// (as opposed to a network hiccup, which just gets retried) -- e.g. a
+// permission rule that doesn't allow it. These get surfaced to the user
+// (see useOfflineStatus below) instead of silently vanishing: the local UI
+// already applied the change optimistically, so if the server never
+// actually accepted it, staying quiet about that would leave someone
+// thinking something is deleted/saved when it actually isn't.
+const rejectedOfflineOpListeners = new Set();
+function notifyRejectedOfflineOp(op, error) {
+  rejectedOfflineOpListeners.forEach(fn => {
+    try {
+      fn(op, error);
+    } catch (e) {/* ignore listener errors */}
+  });
+}
+function subscribeRejectedOfflineOps(fn) {
+  rejectedOfflineOpListeners.add(fn);
+  return () => rejectedOfflineOpListeners.delete(fn);
 }
 function subscribeOfflineQueue(fn) {
   offlineQueueListeners.add(fn);
@@ -2554,7 +2719,14 @@ async function flushOfflineQueue() {
           error
         } = await runSupabaseOp(op);
         if (error && isNetworkError(error)) break; // still offline-ish — stop, retry later
-        if (error) console.error("Dropping an offline change that Supabase rejected:", op, error.message);
+        if (error) {
+          // The server actively rejected this (not a network issue) -- it's
+          // being dropped from the queue since retrying it would just fail
+          // the same way forever, but the person who made this change
+          // deserves to know it never actually went through.
+          console.error("An offline change was rejected by Supabase and could not be applied:", op, error.message);
+          notifyRejectedOfflineOp(op, error);
+        }
       } catch (e) {
         break;
       }
@@ -2574,8 +2746,19 @@ function useOfflineStatus() {
   const [online, setOnline] = useState(isOnlineNow());
   const [pending, setPending] = useState(() => getOfflineQueue().length);
   const [syncing, setSyncing] = useState(false);
+  // Changes made while offline that the server actively rejected once we
+  // reconnected (not a network retry situation) -- e.g. a delete that no
+  // longer passes a permission rule. Surfaced so the caller can tell the
+  // user, instead of the change just silently never having happened.
+  const [syncErrors, setSyncErrors] = useState([]);
   useEffect(() => {
     const unsub = subscribeOfflineQueue(q => setPending(q.length));
+    const unsubRejected = subscribeRejectedOfflineOps((op, error) => {
+      setSyncErrors(errs => [...errs, {
+        op,
+        message: error && error.message
+      }]);
+    });
     function goOnline() {
       setOnline(true);
       setSyncing(true);
@@ -2601,15 +2784,19 @@ function useOfflineStatus() {
     }
     return () => {
       unsub();
+      unsubRejected();
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
       clearInterval(retryTimer);
     };
   }, []);
+  const clearSyncErrors = () => setSyncErrors([]);
   return {
     online,
     pending,
-    syncing
+    syncing,
+    syncErrors,
+    clearSyncErrors
   };
 }
 
@@ -4098,6 +4285,56 @@ function IconSync() {
     strokeLinejoin: "round"
   }));
 }
+function IconSun() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "15",
+    height: "15",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "4.3",
+    stroke: "currentColor",
+    strokeWidth: "1.8"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M12 2.5v2.6M12 18.9v2.6M4.2 4.2l1.9 1.9M17.9 17.9l1.9 1.9M2.5 12h2.6M18.9 12h2.6M4.2 19.8l1.9-1.9M17.9 6.1l1.9-1.9",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }));
+}
+function IconMoon() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "15",
+    height: "15",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M20.2 14.9A8.5 8.5 0 1110 3.8a6.7 6.7 0 0010.2 11.1z",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinejoin: "round",
+    strokeLinecap: "round"
+  }));
+}
+
+// Sun/moon toggle for the app-wide dark/light theme. Shows the icon for the
+// mode you'd switch TO (a moon while in light mode, a sun while in dark
+// mode) — matches the convention used by most apps' theme switches.
+function ThemeToggle({
+  theme,
+  onToggle
+}) {
+  const isLight = theme === "light";
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "theme-toggle-btn",
+    onClick: onToggle,
+    title: isLight ? "Switch to dark mode" : "Switch to light mode",
+    "aria-label": isLight ? "Switch to dark mode" : "Switch to light mode"
+  }, isLight ? /*#__PURE__*/React.createElement(IconMoon, null) : /*#__PURE__*/React.createElement(IconSun, null));
+}
 
 /* ---------------------------------------------------------------------- */
 /* Default demo data                                                      */
@@ -4677,7 +4914,9 @@ function LoginScreen({
   onRegister,
   onRequestReset,
   onCompleteReset,
-  forceRecovery
+  forceRecovery,
+  theme,
+  onToggleTheme
 }) {
   const [mode, setMode] = useState("login"); // login | register | forgot | reset
   const [email, setEmail] = useState(() => loadRememberedEmail());
@@ -4816,7 +5055,13 @@ function LoginScreen({
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "login-shell"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, onToggleTheme && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "theme-toggle-btn login-theme-toggle",
+    onClick: onToggleTheme,
+    title: theme === "light" ? "Switch to dark mode" : "Switch to light mode",
+    "aria-label": theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+  }, theme === "light" ? /*#__PURE__*/React.createElement(IconMoon, null) : /*#__PURE__*/React.createElement(IconSun, null)), /*#__PURE__*/React.createElement("div", {
     className: "login-glow"
   }), /*#__PURE__*/React.createElement("div", {
     className: "login-shell-inner"
@@ -5097,16 +5342,21 @@ function LoginScreen({
 function initialsFor(name) {
   return (name || "").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
+// Clickable -- opens the Messages panel, since "who's online right now" and
+// "message someone" are the same errand for whoever clicks this.
 function OnlineUsersBadge({
   onlineUsers,
-  collapsed
+  collapsed,
+  onOpenMessages
 }) {
   const count = onlineUsers.length;
   const names = onlineUsers.map(u => u.name).filter(Boolean);
-  const title = count > 0 ? `Online now: ${names.join(", ")}` : "No one else is online right now";
-  return /*#__PURE__*/React.createElement("div", {
+  const title = (count > 0 ? `Online now: ${names.join(", ")}` : "No one else is online right now") + " — click to open Messages";
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
     className: "online-users-badge",
-    title: title
+    title: title,
+    onClick: onOpenMessages
   }, /*#__PURE__*/React.createElement("span", {
     className: "online-dot"
   }), !collapsed && /*#__PURE__*/React.createElement("span", {
@@ -5213,6 +5463,7 @@ function Sidebar({
   pending,
   syncing,
   onlineUsers,
+  onOpenMessages,
   mobileOpen,
   onNavigate
 }) {
@@ -5252,7 +5503,8 @@ function Sidebar({
     className: "sidebar-footer"
   }, /*#__PURE__*/React.createElement(OnlineUsersBadge, {
     onlineUsers: onlineUsers || [],
-    collapsed: collapsed
+    collapsed: collapsed,
+    onOpenMessages: onOpenMessages
   }), /*#__PURE__*/React.createElement(SyncStatusBadge, {
     online: online,
     pending: pending,
@@ -5388,14 +5640,14 @@ function TimeframeToggle({
     key: m,
     value: i + 1
   }, m))), /*#__PURE__*/React.createElement("select", {
-    className: "select timeframe-anchor",
+    className: "select timeframe-anchor timeframe-anchor-year",
     value: anchorYear,
     onChange: e => setAnchorYear(e.target.value)
   }, (years.includes(anchorYear) ? years : [...years, anchorYear].sort()).map(y => /*#__PURE__*/React.createElement("option", {
     key: y,
     value: y
   }, y)))) : /*#__PURE__*/React.createElement("select", {
-    className: "select timeframe-anchor",
+    className: "select timeframe-anchor timeframe-anchor-year",
     value: timeframe.yearAnchor,
     onChange: e => setTimeframe(t => ({
       ...t,
@@ -5504,13 +5756,11 @@ function CurrencyControl({
     className: "btn ghost bu-row-cancel",
     title: "Discard change",
     onClick: cancelRate
-  }, /*#__PURE__*/React.createElement(IconX, null)))), /*#__PURE__*/React.createElement("span", {
-    className: "currency-active-label",
-    title: "Every amount in the app right now is shown in this currency"
-  }, "Showing amounts in"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(IconX, null)))), /*#__PURE__*/React.createElement("div", {
     className: "seg-toggle",
     role: "tablist",
-    "aria-label": "Currency"
+    "aria-label": "Currency",
+    title: "Every amount in the app right now is shown in this currency"
   }, ["USD", "LKR"].map(c => /*#__PURE__*/React.createElement("button", {
     key: c,
     type: "button",
@@ -6424,6 +6674,11 @@ function MessageAttachmentView({
     className: "message-attachment-file-size"
   }, formatFileSize(attachment.size)), /*#__PURE__*/React.createElement(IconDownload, null)));
 }
+
+// `open`/`setOpen` are lifted up to App (rather than local state here) so
+// something entirely outside this component -- the sidebar's "N online"
+// presence badge -- can also open the panel, not just this component's own
+// toggle button.
 function MessageCenter({
   messages,
   setMessages,
@@ -6431,9 +6686,10 @@ function MessageCenter({
   reps,
   profiles,
   currentUser,
-  lockedRep
+  lockedRep,
+  open,
+  setOpen
 }) {
-  const [open, setOpen] = useState(false);
   // Just two tabs now: a unified conversation list (every Admin/Rep pairing
   // is private, so there's no reason to split it into separate "Team Inbox"/
   // "Admins"/"Sales Reps" sections any more) and read-only Announcements.
@@ -6695,6 +6951,7 @@ function MessageCenter({
     setMessages(ms => ms.filter(m => !ids.has(m.id)));
     setSelectedContact(null);
     const failures = [];
+    let lastErrorMessage = "";
     for (const m of toDelete) {
       const {
         error
@@ -6706,6 +6963,7 @@ function MessageCenter({
       });
       if (error) {
         failures.push(m);
+        lastErrorMessage = error.message || lastErrorMessage;
         continue;
       }
       if (m.attachment && m.attachment.path) {
@@ -6716,7 +6974,11 @@ function MessageCenter({
     }
     if (failures.length) {
       setMessages(ms => [...ms, ...failures]);
-      window.alert(`Deleted ${toDelete.length - failures.length} of ${toDelete.length} messages — ${failures.length} couldn't be removed. Please try again.`);
+      // Surface the actual server error, not just "it failed" -- this is
+      // almost always a permissions rule rejecting the delete (e.g. the
+      // messages_delete database policy not yet updated to allow it), and
+      // that's genuinely useful to see rather than guess at.
+      window.alert(`Deleted ${toDelete.length - failures.length} of ${toDelete.length} messages — ${failures.length} couldn't be removed.` + (lastErrorMessage ? `\n\nReason: ${lastErrorMessage}` : "") + `\n\nPlease try again, or contact support if this keeps happening.`);
     }
   }
   function DeleteMessageBtn({
@@ -6830,19 +7092,23 @@ function MessageCenter({
   }, initials(c.person.name)), /*#__PURE__*/React.createElement("span", {
     className: "message-conv-info"
   }, /*#__PURE__*/React.createElement("span", {
+    className: "message-conv-top-line"
+  }, /*#__PURE__*/React.createElement("span", {
     className: "message-conv-name"
-  }, c.person.name, isRepName(c.person.name, reps) ? /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "message-conv-name-text"
+  }, c.person.name), isRepName(c.person.name, reps) ? /*#__PURE__*/React.createElement("span", {
     className: "tag-muted"
-  }, "\xA0(Sales Rep)") : /*#__PURE__*/React.createElement("span", {
+  }, "(Sales Rep)") : /*#__PURE__*/React.createElement("span", {
     className: "tag-muted"
-  }, "\xA0(Admin)"), c.unread > 0 && /*#__PURE__*/React.createElement("span", {
+  }, "(Admin)"), c.unread > 0 && /*#__PURE__*/React.createElement("span", {
     className: "message-new-dot",
     title: `${c.unread} unread`
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "message-conv-preview"
-  }, c.last ? c.last.body || (c.last.attachment ? `📎 ${c.last.attachment.name}` : "") : "No messages yet — say hello")), c.last && /*#__PURE__*/React.createElement("span", {
+  })), c.last && /*#__PURE__*/React.createElement("span", {
     className: "message-conv-time"
-  }, formatDateTime(c.last.createdAt))))) : /*#__PURE__*/React.createElement("div", {
+  }, formatDateTime(c.last.createdAt))), /*#__PURE__*/React.createElement("span", {
+    className: "message-conv-preview"
+  }, c.last ? c.last.body || (c.last.attachment ? `📎 ${c.last.attachment.name}` : "") : "No messages yet — say hello"))))) : /*#__PURE__*/React.createElement("div", {
     className: "message-conv-open"
   }, /*#__PURE__*/React.createElement("button", {
     className: "message-conv-back",
@@ -6854,7 +7120,9 @@ function MessageCenter({
     style: {
       background: "var(--accent-blue)"
     }
-  }, initials(selectedContact)), selectedContact, /*#__PURE__*/React.createElement("button", {
+  }, initials(selectedContact)), /*#__PURE__*/React.createElement("span", {
+    className: "message-conv-open-name"
+  }, selectedContact), /*#__PURE__*/React.createElement("button", {
     className: "message-thread-delete-btn",
     title: "Delete this entire conversation",
     onClick: () => deleteThread(selectedContact)
@@ -14195,6 +14463,18 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  // Dark/light theme — applies immediately (even on the splash/login screens,
+  // since this effect runs on every render regardless of which screen the
+  // rest of the component returns below) and persists across restarts.
+  const [theme, setTheme] = useState(loadTheme);
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    saveTheme(theme);
+  }, [theme]);
+  function toggleTheme() {
+    setTheme(t => t === "light" ? "dark" : "light");
+  }
+
   // Back navigation — a stack of previously-visited tabs, browser-back style.
   // Every tab change pushes whatever tab you were just on, UNLESS the change
   // itself came from goBack() (tracked via the ref so popping history doesn't
@@ -14250,6 +14530,10 @@ function App() {
   // to feel like a quick, in-place top-up rather than a full reload.
   const [refreshing, setRefreshing] = useState(false);
   const [authMode, setAuthMode] = useState(isRecoveryRedirect() ? "recovery" : null);
+  // Lifted out of MessageCenter so the sidebar's "N online" presence badge
+  // (a totally separate part of the tree) can open the Messages panel too,
+  // not just MessageCenter's own toggle button.
+  const [messagesOpen, setMessagesOpen] = useState(false);
   const [selectedRep, setSelectedRep] = useState("All");
   const [timeframe, setTimeframe] = useState({
     mode: "monthly",
@@ -14260,8 +14544,22 @@ function App() {
   const {
     online,
     pending,
-    syncing
+    syncing,
+    syncErrors,
+    clearSyncErrors
   } = useOfflineStatus();
+
+  // Tell the user when something they did while offline never actually made
+  // it to the server once reconnected (a permission rule rejected it, etc.)
+  // -- silently dropping these left people thinking a delete/edit had gone
+  // through when it hadn't.
+  useEffect(() => {
+    if (syncErrors.length === 0) return;
+    const messages = syncErrors.map(e => `• ${e.op.table} ${e.op.action}: ${e.message || "rejected by the server"}`);
+    window.alert(`${syncErrors.length} change${syncErrors.length === 1 ? "" : "s"} you made while offline could not be saved once you reconnected:\n\n` + messages.join("\n") + `\n\nYou may need to redo ${syncErrors.length === 1 ? "it" : "them"}.`);
+    clearSyncErrors();
+    // eslint-disable-next-line
+  }, [syncErrors]);
   useEffect(() => {
     localStorage.setItem(CURRENCY_KEY, JSON.stringify({
       currency,
@@ -14939,7 +15237,9 @@ function App() {
       onRegister: attemptRegister,
       onRequestReset: requestPasswordReset,
       onCompleteReset: completePasswordReset,
-      forceRecovery: true
+      forceRecovery: true,
+      theme: theme,
+      onToggleTheme: toggleTheme
     });
   }
   if (!currentUser) {
@@ -14948,7 +15248,9 @@ function App() {
       onRegister: attemptRegister,
       onRequestReset: requestPasswordReset,
       onCompleteReset: completePasswordReset,
-      forceRecovery: false
+      forceRecovery: false,
+      theme: theme,
+      onToggleTheme: toggleTheme
     });
   }
   if (dataLoading) {
@@ -15042,6 +15344,7 @@ function App() {
     pending: pending,
     syncing: syncing,
     onlineUsers: onlineUsers,
+    onOpenMessages: () => setMessagesOpen(true),
     mobileOpen: mobileNavOpen,
     onNavigate: () => setMobileNavOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
@@ -15089,13 +15392,16 @@ function App() {
     setRate: setRate
   }), /*#__PURE__*/React.createElement("span", {
     className: "toolbar-divider"
-  }), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "toolbar-icon-group"
+  }, /*#__PURE__*/React.createElement("button", {
     className: "refresh-btn" + (refreshing ? " spinning" : ""),
     onClick: refreshData,
     disabled: refreshing,
     title: "Refresh data"
-  }, /*#__PURE__*/React.createElement(IconSync, null)), /*#__PURE__*/React.createElement("span", {
-    className: "toolbar-divider"
+  }, /*#__PURE__*/React.createElement(IconSync, null)), /*#__PURE__*/React.createElement(ThemeToggle, {
+    theme: theme,
+    onToggle: toggleTheme
   }), /*#__PURE__*/React.createElement(MessageCenter, {
     messages: messages,
     setMessages: setMessages,
@@ -15103,8 +15409,10 @@ function App() {
     reps: activeReps,
     profiles: profiles,
     currentUser: currentUser,
-    lockedRep: lockedRep
-  }))), tab === "home" && /*#__PURE__*/React.createElement(HomeScreen, {
+    lockedRep: lockedRep,
+    open: messagesOpen,
+    setOpen: setMessagesOpen
+  })))), tab === "home" && /*#__PURE__*/React.createElement(HomeScreen, {
     isAdmin: isAdmin,
     currentUser: currentUser,
     setTab: setTab
