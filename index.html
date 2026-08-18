@@ -1318,7 +1318,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
   .login-brand-heading{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; }
   .login-brand-name{ font-size:26px; }
+  /* Same fix as .splash-tagline: the lockup image bakes the emblem icon +
+     "LEADFORGE" wordmark into one flat asset, with the icon occupying the
+     left ~20.6% of its width. This tagline sits directly below that image
+     (both share the same left edge in .login-brand-panel's layout), so
+     without an offset it starts flush under the emblem icon rather than
+     under the wordmark text -- padding-left brings it back in line with
+     "LEADFORGE" specifically. Uses the SAME width expression as
+     .login-logo-lockup so the offset stays correct at any panel width. */
   .login-brand-panel-tagline{
+    padding-left:calc(0.2058 * min(260px, 72%));
     font-size:11px; font-weight:700; letter-spacing:.08em;
     text-transform:uppercase; color:var(--accent-blue);
   }
@@ -1991,6 +2000,20 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .message-conv-open-head{
     display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:var(--text-primary); margin-bottom:12px;
   }
+  /* Deletes the WHOLE conversation (every message, both directions) with
+     this contact -- available to any user for their own threads, not just
+     Admins (see deleteThread in app.jsx / the messages_delete RLS policy).
+     Pushed to the far right of the header via margin-left:auto so it never
+     collides with a long contact name. */
+  .message-thread-delete-btn{
+    margin-left:auto; flex:0 0 auto; display:flex; align-items:center; gap:5px;
+    background:transparent; border:1px solid var(--border-strong); color:var(--text-muted);
+    font-size:11px; font-weight:700; font-family:inherit; cursor:pointer;
+    padding:6px 10px; border-radius:8px; white-space:nowrap;
+    transition:color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .message-thread-delete-btn svg{ width:12px; height:12px; }
+  .message-thread-delete-btn:hover{ color:var(--status-critical); border-color:rgba(251,88,88,0.4); background:rgba(251,88,88,0.1); }
 
   /* Chat file attachments — composer control + inline rendered view. */
   .message-attach-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -6617,10 +6640,13 @@ function MessageCenter({
     } else playMessageChime();
   }
 
-  // Admin-only, server-enforced too (the messages_admin_delete RLS policy
-  // rejects this for anyone whose role isn't Admin, and is itself scoped to
-  // only the threads that Admin is actually part of, or a broadcast) — a
-  // Sales Rep never gets this button rendered in the first place.
+  // A broadcast Announcement (recipient === "All") is shared, company-wide
+  // content -- deleting one is still Admin-only, server-enforced by the
+  // messages_delete RLS policy. A private one-on-one message is only ever
+  // seen by the two people in that thread, so either participant deleting
+  // it (or the whole thread, see deleteThread below) is safe and no longer
+  // needs an Admin gate -- also server-enforced: messages_delete only lets
+  // you delete a private message where you're the sender or the recipient.
   async function deleteMessage(m) {
     if (!window.confirm("Delete this message? This can't be undone.")) return;
     setMessages(ms => ms.filter(x => x.id !== m.id));
@@ -6651,10 +6677,53 @@ function MessageCenter({
       } catch (e) {/* non-fatal */}
     }
   }
+
+  // Deletes an ENTIRE private conversation -- every message either side
+  // ever sent, in both directions -- with one contact. Available to any
+  // user for their own threads (server-enforced: messages_delete only
+  // allows removing a private message where you're the sender or the
+  // recipient, the same scope as "every message in my thread with them",
+  // so this can never reach into a conversation you're not part of).
+  async function deleteThread(contactName) {
+    const toDelete = messages.filter(m => m.senderName === myName && m.recipient === contactName || m.senderName === contactName && m.recipient === myName);
+    if (toDelete.length === 0) {
+      setSelectedContact(null);
+      return;
+    }
+    if (!window.confirm(`Delete your entire conversation with ${contactName}? This removes all ${toDelete.length} message${toDelete.length === 1 ? "" : "s"} for both of you and can't be undone.`)) return;
+    const ids = new Set(toDelete.map(m => m.id));
+    setMessages(ms => ms.filter(m => !ids.has(m.id)));
+    setSelectedContact(null);
+    const failures = [];
+    for (const m of toDelete) {
+      const {
+        error
+      } = await sbWriteOrQueue({
+        table: "messages",
+        action: "delete",
+        matchColumn: "id",
+        matchValue: m.id
+      });
+      if (error) {
+        failures.push(m);
+        continue;
+      }
+      if (m.attachment && m.attachment.path) {
+        try {
+          await sb.storage.from(CHAT_ATTACHMENTS_BUCKET).remove([m.attachment.path]);
+        } catch (e) {/* non-fatal */}
+      }
+    }
+    if (failures.length) {
+      setMessages(ms => [...ms, ...failures]);
+      window.alert(`Deleted ${toDelete.length - failures.length} of ${toDelete.length} messages — ${failures.length} couldn't be removed. Please try again.`);
+    }
+  }
   function DeleteMessageBtn({
     m
   }) {
-    if (!isAdmin) return null;
+    const allowed = m.recipient === "All" ? isAdmin : true;
+    if (!allowed) return null;
     return /*#__PURE__*/React.createElement("button", {
       className: "message-delete-btn",
       title: "Delete message",
@@ -6785,7 +6854,11 @@ function MessageCenter({
     style: {
       background: "var(--accent-blue)"
     }
-  }, initials(selectedContact)), selectedContact), /*#__PURE__*/React.createElement("div", {
+  }, initials(selectedContact)), selectedContact, /*#__PURE__*/React.createElement("button", {
+    className: "message-thread-delete-btn",
+    title: "Delete this entire conversation",
+    onClick: () => deleteThread(selectedContact)
+  }, /*#__PURE__*/React.createElement(IconTrash, null), "\xA0Delete conversation")), /*#__PURE__*/React.createElement("div", {
     className: "message-list message-thread",
     ref: threadScrollRef
   }, selectedThread.length === 0 && /*#__PURE__*/React.createElement("div", {
@@ -14457,6 +14530,49 @@ function App() {
       mounted = false;
       sub.subscription.unsubscribe();
     };
+    // eslint-disable-next-line
+  }, []);
+
+  // Desktop-only: deliver a leadforge:// deep link (a password-reset email
+  // link) to an ALREADY-RUNNING app window. main.js used to handle this by
+  // reloading the window at the same file:// path with a new hash appended
+  // -- but navigating to the SAME path with only a different hash is a
+  // same-document fragment navigation in Chromium, which updates
+  // window.location.hash WITHOUT re-executing the page's script. Since
+  // there's no visible address bar, that made the app silently do nothing:
+  // it "opened" (came to the foreground) but never showed the reset screen.
+  // main.js now forwards the link's params to us directly over IPC (see
+  // preload.js) instead, and we complete the same code exchange Supabase
+  // would normally do on a fresh page load, ourselves, right here.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.leadforgeDeepLink) return undefined;
+    const handler = ({
+      queryString
+    }) => {
+      const params = new URLSearchParams(queryString || "");
+      const code = params.get("code");
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      if (code) {
+        // PKCE flow (current default) -- exchanging the code both completes
+        // the sign-in AND fires a PASSWORD_RECOVERY auth event (since the
+        // link carries type=recovery), which the listener above already
+        // handles by flipping authMode to "recovery".
+        sb.auth.exchangeCodeForSession(code).catch(() => {
+          window.alert("This password reset link has expired or was already used. Please request a new one.");
+        });
+      } else if (accessToken && refreshToken && params.get("type") === "recovery") {
+        // Backward compatibility with any older-format (implicit-flow)
+        // reset emails still out there from before the PKCE switch.
+        sb.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        }).catch(() => {
+          window.alert("This password reset link has expired or was already used. Please request a new one.");
+        });
+      }
+    };
+    window.leadforgeDeepLink.onDeepLink(handler);
     // eslint-disable-next-line
   }, []);
 
