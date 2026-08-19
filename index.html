@@ -9967,11 +9967,24 @@ function formatRemaining(target, actual, fmt) {
 
 // Business Unit performance: annual target vs. revenue actually closed this
 // year vs. still-open pipeline value sitting in that BU.
-function computeBUStats(businessUnits, leads, year) {
+//
+// "revenueClosed" (what counts against the annual target) is drawn from
+// recorded Completed Sales -- the authoritative, deliberately-entered record
+// from Sales Performance & Analytics -- NOT from leads flipped to "Closed
+// Won". A lead's stage is a Lead Pipeline concept: forecasting and business
+// development, tracking what's in motion and what a rep BELIEVES they've
+// won. It's a separate signal from an actual, recorded sale, and the two can
+// legitimately drift (a lead marked Closed Won before the deal is fully
+// invoiced/booked, a sale entered without ever being tracked as a lead,
+// etc.) -- Business Units & Targets needs the real number.
+// "pipelineValue" stays leads-based on purpose: it's still-open pipeline,
+// exactly the forecasting signal Lead Pipeline exists to track, shown here
+// only for context alongside the real target-attainment figure.
+function computeBUStats(businessUnits, leads, completedSales, year) {
   return businessUnits.map(bu => {
     const buLeads = leads.filter(l => l.businessUnit === bu.name && !l.deletedAt);
-    const closedThisYear = buLeads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(year));
-    const revenueClosed = closedThisYear.reduce((s, l) => s + (l.value || 0), 0);
+    const buSalesThisYear = (completedSales || []).filter(s => s.businessUnit === bu.name && s.month && s.month.slice(0, 4) === String(year));
+    const revenueClosed = buSalesThisYear.reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
     const pipelineValue = buLeads.filter(l => l.stage !== "Closed Won" && l.stage !== "Closed Lost" && !l.archivedAt).reduce((s, l) => s + (l.value || 0), 0);
     const pct = bu.annualTarget > 0 ? Math.round(revenueClosed / bu.annualTarget * 100) : revenueClosed > 0 ? 100 : 0;
     return {
@@ -9987,19 +10000,22 @@ function computeBUStats(businessUnits, leads, year) {
 // Rep quota tracking: how much of the target allocated to a rep (optionally
 // scoped to one Business Unit) has actually been closed, for either a single
 // month or the whole year — this is the "how much more do they need to
-// achieve" number the Admin cares about.
-function computeRepTargetStats(reps, repTargets, leads, year, month, businessUnitName) {
+// achieve" number the Admin cares about. "actual" is summed from recorded
+// Completed Sales, matched by rep + (optionally) Business Unit + year/month
+// -- see computeBUStats above for why this reads from Completed Sales and
+// not from Lead Pipeline's "Closed Won" stage.
+function computeRepTargetStats(reps, repTargets, completedSales, year, month, businessUnitName) {
   return reps.map(rep => {
     const relevantTargets = repTargets.filter(t => t.repName === rep.name && t.year === year && (month ? t.month === month : true) && (businessUnitName ? t.businessUnit === businessUnitName : true));
     const target = relevantTargets.reduce((s, t) => s + t.targetAmount, 0);
-    const closedLeads = leads.filter(l => {
-      if (l.assignedRep !== rep.name || l.stage !== "Closed Won" || l.deletedAt || !l.closedDate) return false;
-      if (businessUnitName && l.businessUnit !== businessUnitName) return false;
-      const ly = l.closedDate.slice(0, 4),
-        lm = Number(l.closedDate.slice(5, 7));
-      return ly === String(year) && (month ? lm === month : true);
+    const relevantSales = (completedSales || []).filter(sale => {
+      if (sale.repName !== rep.name || !sale.month) return false;
+      if (businessUnitName && sale.businessUnit !== businessUnitName) return false;
+      const sy = sale.month.slice(0, 4),
+        sm = Number(sale.month.slice(5, 7));
+      return sy === String(year) && (month ? sm === month : true);
     });
-    const actual = closedLeads.reduce((s, l) => s + (l.value || 0), 0);
+    const actual = relevantSales.reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
     const pct = target > 0 ? Math.round(actual / target * 100) : actual > 0 ? 100 : 0;
     return {
       rep,
@@ -10015,15 +10031,24 @@ function computeRepTargetStats(reps, repTargets, leads, year, month, businessUni
 /* Team Analytics tab                                                     */
 /* ---------------------------------------------------------------------- */
 
-function computeRepStats(reps, leads, currency, rate) {
+// Team leaderboard: assignedCount/wonCount/lostCount/winRate are Lead
+// Pipeline conversion metrics (forecasting/business development -- how
+// effectively a rep is moving leads through the pipeline), so they stay
+// leads-based. "Revenue Closed" and "Avg Deal Size" are actual realized
+// revenue figures, so -- same reasoning as computeBUStats/
+// computeRepTargetStats above -- they're drawn from recorded Completed
+// Sales, not from leads flipped to "Closed Won", so every "revenue" number
+// in the app means the same real, recorded sale.
+function computeRepStats(reps, leads, completedSales, currency, rate) {
   return reps.map((r, i) => {
     const assigned = leads.filter(l => l.assignedRep === r.name);
     const won = assigned.filter(l => l.stage === "Closed Won");
     const lost = assigned.filter(l => l.stage === "Closed Lost");
     const decided = won.length + lost.length;
-    const revenue = won.reduce((s, l) => s + (l.value || 0), 0);
     const winRate = decided > 0 ? Math.round(won.length / decided * 100) : 0;
-    const avgDeal = won.length > 0 ? revenue / won.length : 0;
+    const repSales = (completedSales || []).filter(s => s.repName === r.name);
+    const revenue = repSales.reduce((s, x) => s + (x.baseAmountUSD || 0), 0);
+    const avgDeal = repSales.length > 0 ? revenue / repSales.length : 0;
     return {
       rep: r,
       assignedCount: assigned.length,
@@ -10144,6 +10169,7 @@ function TeamAnalytics({
   lockedRep,
   businessUnits,
   repTargets,
+  completedSales,
   log,
   selectedRep,
   timeframe
@@ -10162,7 +10188,7 @@ function TeamAnalytics({
   const activeRoster = useMemo(() => reps.filter(r => !r.deletedAt), [reps]);
   const deletedReps = useMemo(() => reps.filter(r => r.deletedAt), [reps]);
   const visibleReps = isAdmin ? activeRoster : activeRoster.filter(r => r.name === lockedRep);
-  const stats = useMemo(() => computeRepStats(visibleReps, leads, currency, rate), [visibleReps, leads, currency, rate]);
+  const stats = useMemo(() => computeRepStats(visibleReps, leads, completedSales, currency, rate), [visibleReps, leads, completedSales, currency, rate]);
   const revenueData = stats.map(s => ({
     label: s.rep.name,
     value: s.revenue,
@@ -10192,8 +10218,8 @@ function TeamAnalytics({
   const quotaAnnualYear = Number(timeframe.yearAnchor);
   const quotaPossessive = isAdmin && quotaRepName ? `${quotaRepName}'s` : "Your";
   const quotaPossessiveLower = isAdmin && quotaRepName ? `${quotaRepName}'s` : "your";
-  const quotaMonthlyQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth, null)[0] : null, [quotaRep, repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
-  const quotaAnnualQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, leads, quotaAnnualYear, null, null)[0] : null, [quotaRep, repTargets, leads, quotaAnnualYear]);
+  const quotaMonthlyQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, completedSales, quotaMonthAnchorYear, quotaMonthAnchorMonth, null)[0] : null, [quotaRep, repTargets, completedSales, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
+  const quotaAnnualQuota = useMemo(() => quotaRep && repTargets ? computeRepTargetStats([quotaRep], repTargets, completedSales, quotaAnnualYear, null, null)[0] : null, [quotaRep, repTargets, completedSales, quotaAnnualYear]);
   const quotaProductivity = useMemo(() => quotaRep && log ? computeRepProductivityStats([quotaRep], log)[0] : null, [quotaRep, log]);
 
   // Per-Business-Unit quota breakdown — the aggregate cards above answer
@@ -10212,10 +10238,10 @@ function TeamAnalytics({
     const buNames = Array.from(new Set(repTargets.filter(t => t.repName === quotaRep.name && (t.year === quotaAnnualYear || t.year === quotaMonthAnchorYear)).map(t => t.businessUnit))).filter(Boolean).sort();
     return buNames.map(buName => {
       const buMeta = businessUnits.find(b => b.name === buName);
-      const monthly = computeRepTargetStats([quotaRep], repTargets, leads, quotaMonthAnchorYear, quotaMonthAnchorMonth, buName)[0] || {
+      const monthly = computeRepTargetStats([quotaRep], repTargets, completedSales, quotaMonthAnchorYear, quotaMonthAnchorMonth, buName)[0] || {
         ...zero
       };
-      const annual = computeRepTargetStats([quotaRep], repTargets, leads, quotaAnnualYear, null, buName)[0] || {
+      const annual = computeRepTargetStats([quotaRep], repTargets, completedSales, quotaAnnualYear, null, buName)[0] || {
         ...zero
       };
       return {
@@ -10225,7 +10251,7 @@ function TeamAnalytics({
         annual
       };
     });
-  }, [quotaRep, repTargets, leads, businessUnits, quotaAnnualYear, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
+  }, [quotaRep, repTargets, completedSales, businessUnits, quotaAnnualYear, quotaMonthAnchorYear, quotaMonthAnchorMonth]);
   async function addRep() {
     const name = newRepName.trim();
     if (!name) return;
@@ -11020,6 +11046,7 @@ function BusinessUnits({
   setRepTargets,
   reps,
   leads,
+  completedSales,
   currency,
   rate
 }) {
@@ -11262,7 +11289,7 @@ function BusinessUnits({
     if (error) window.alert("Could not remove allocation: " + error.message);
   }
   const totalAnnualTarget = businessUnits.reduce((s, b) => s + b.annualTarget, 0);
-  const buStats = useMemo(() => computeBUStats(businessUnits, leads, trackerYear), [businessUnits, leads, trackerYear]);
+  const buStats = useMemo(() => computeBUStats(businessUnits, leads, completedSales, trackerYear), [businessUnits, leads, completedSales, trackerYear]);
   const ytdAchieved = buStats.reduce((s, b) => s + b.revenueClosed, 0);
   const overallPct = totalAnnualTarget > 0 ? Math.round(ytdAchieved / totalAnnualTarget * 100) : 0;
 
@@ -11318,8 +11345,8 @@ function BusinessUnits({
     downloadCSV(`business-units-${trackerYear}.csv`, rows);
   }
   const repsInScope = trackerBU === "All" ? reps : reps; // rep roster doesn't change by BU; the BU filter narrows targets/actuals instead
-  const monthlyStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, leads, trackerYear, trackerMonth, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, leads, trackerYear, trackerMonth, trackerBU]);
-  const annualStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, leads, trackerYear, null, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, leads, trackerYear, trackerBU]);
+  const monthlyStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, completedSales, trackerYear, trackerMonth, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, completedSales, trackerYear, trackerMonth, trackerBU]);
+  const annualStats = useMemo(() => computeRepTargetStats(repsInScope, repTargets, completedSales, trackerYear, null, trackerBU === "All" ? null : trackerBU), [repsInScope, repTargets, completedSales, trackerYear, trackerBU]);
   const trackerRepNames = Array.from(new Set([...monthlyStats.map(s => s.rep.name), ...annualStats.map(s => s.rep.name)]));
   const combinedStats = trackerRepNames.map(name => {
     const rep = reps.find(r => r.name === name);
@@ -13645,12 +13672,19 @@ function Dashboard({
   // narrows to the selected Business Unit (computeRepTargetStats already
   // accepted a businessUnitName filter; it just wasn't wired up to a UI
   // control here before this).
+  // "actual" here is always drawn from recorded Completed Sales, never from
+  // leads marked "Closed Won" -- see computeRepTargetStats/computeBUStats
+  // for why: Lead Pipeline tracks forecasting/business development (what's
+  // in motion, what a rep believes they've won), while Business Units &
+  // Targets needs the real, recorded sale. Keeps this KPI strip's "how are
+  // we doing against target" honest and consistent with the Business Units
+  // & Targets tab and the Closed Sales Performance section below.
   const targetProgress = useMemo(() => {
     const taYear = timeframe.mode === "monthly" ? Number(timeframe.monthAnchor.slice(0, 4)) : Number(timeframe.yearAnchor);
     const taMonth = timeframe.mode === "monthly" ? Number(timeframe.monthAnchor.slice(5, 7)) : null;
     if (isScoped) {
       const repObj = reps.find(r => r.name === selectedRep);
-      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, taMonth, buFilterName) : [];
+      const stats = repObj ? computeRepTargetStats([repObj], repTargets, completedSales, taYear, taMonth, buFilterName) : [];
       const s = stats[0] || {
         target: 0,
         actual: 0,
@@ -13664,7 +13698,7 @@ function Dashboard({
     }
     if (timeframe.mode === "yearly") {
       const target = (buFilterName ? businessUnits.filter(b => b.name === buFilterName) : businessUnits).reduce((s, b) => s + b.annualTarget, 0);
-      const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear) && (!buFilterName || l.businessUnit === buFilterName)).reduce((s, l) => s + (l.value || 0), 0);
+      const actual = (completedSales || []).filter(s => s.month && s.month.slice(0, 4) === String(taYear) && (!buFilterName || s.businessUnit === buFilterName)).reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
       const pct = target > 0 ? Math.round(actual / target * 100) : actual > 0 ? 100 : 0;
       return {
         target,
@@ -13672,7 +13706,7 @@ function Dashboard({
         pct
       };
     }
-    const stats = computeRepTargetStats(reps, repTargets, leads, taYear, taMonth, buFilterName);
+    const stats = computeRepTargetStats(reps, repTargets, completedSales, taYear, taMonth, buFilterName);
     const target = stats.reduce((s, x) => s + x.target, 0);
     const actual = stats.reduce((s, x) => s + x.actual, 0);
     const pct = target > 0 ? Math.round(actual / target * 100) : actual > 0 ? 100 : 0;
@@ -13681,7 +13715,7 @@ function Dashboard({
       actual,
       pct
     };
-  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, buFilterName, timeframe.mode, timeframe.monthAnchor, timeframe.yearAnchor]);
+  }, [isScoped, selectedRep, reps, repTargets, completedSales, businessUnits, buFilterName, timeframe.mode, timeframe.monthAnchor, timeframe.yearAnchor]);
   const periods = timeframe.mode === "monthly" ? getLastNMonthsFromAnchor(6, timeframe.monthAnchor) : getLastNYearsFromAnchor(5, timeframe.yearAnchor);
   const trend = revenueByPeriod(scopedLeads, periods, timeframe.mode);
   const decidedLeads = scopedLeads.filter(l => l.stage === "Closed Won" || l.stage === "Closed Lost");
@@ -13731,7 +13765,7 @@ function Dashboard({
     const taYear = Number(timeframe.yearAnchor) || new Date().getFullYear();
     if (isScoped) {
       const repObj = reps.find(r => r.name === selectedRep);
-      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, null, buFilterName) : [];
+      const stats = repObj ? computeRepTargetStats([repObj], repTargets, completedSales, taYear, null, buFilterName) : [];
       const s = stats[0] || {
         target: 0,
         actual: 0
@@ -13742,12 +13776,12 @@ function Dashboard({
       };
     }
     const target = (buFilterName ? businessUnits.filter(b => b.name === buFilterName) : businessUnits).reduce((s, b) => s + b.annualTarget, 0);
-    const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear) && (!buFilterName || l.businessUnit === buFilterName)).reduce((s, l) => s + (l.value || 0), 0);
+    const actual = (completedSales || []).filter(s => s.month && s.month.slice(0, 4) === String(taYear) && (!buFilterName || s.businessUnit === buFilterName)).reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
     return {
       target,
       actual
     };
-  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, buFilterName, timeframe.yearAnchor]);
+  }, [isScoped, selectedRep, reps, repTargets, completedSales, businessUnits, buFilterName, timeframe.yearAnchor]);
   const sourceRoiData = computeSourceRoi(scopedLeads);
   const stageFunnelData = computeStageFunnel(scopedLeads);
   const reasonLostData = computeReasonLostBreakdown(scopedLeads);
@@ -13815,8 +13849,8 @@ function Dashboard({
   const repPerfMonthYear = Number(timeframe.monthAnchor.slice(0, 4));
   const repPerfMonth = Number(timeframe.monthAnchor.slice(5, 7));
   const repPerfYear = Number(timeframe.yearAnchor) || new Date().getFullYear();
-  const repPerfMonthlyStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfMonthYear, repPerfMonth, buFilterName), [reps, repTargets, leads, repPerfMonthYear, repPerfMonth, buFilterName]);
-  const repPerfAnnualStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfYear, null, buFilterName), [reps, repTargets, leads, repPerfYear, buFilterName]);
+  const repPerfMonthlyStats = useMemo(() => computeRepTargetStats(reps, repTargets, completedSales, repPerfMonthYear, repPerfMonth, buFilterName), [reps, repTargets, completedSales, repPerfMonthYear, repPerfMonth, buFilterName]);
+  const repPerfAnnualStats = useMemo(() => computeRepTargetStats(reps, repTargets, completedSales, repPerfYear, null, buFilterName), [reps, repTargets, completedSales, repPerfYear, buFilterName]);
   const repPerfNames = Array.from(new Set([...repPerfMonthlyStats.map(s => s.rep.name), ...repPerfAnnualStats.map(s => s.rep.name)]));
   const repPerfStats = repPerfNames.map(name => {
     const rep = reps.find(r => r.name === name);
@@ -16674,6 +16708,7 @@ function App() {
     lockedRep: lockedRep,
     businessUnits: businessUnits,
     repTargets: repTargets,
+    completedSales: completedSales,
     log: log,
     selectedRep: selectedRep,
     timeframe: timeframe
@@ -16684,6 +16719,7 @@ function App() {
     setRepTargets: setRepTargets,
     reps: activeReps,
     leads: visibleLeads,
+    completedSales: completedSales,
     currency: currency,
     rate: rate
   }), tab === "salesperformance" && isAdmin && /*#__PURE__*/React.createElement(SalesPerformance, {
