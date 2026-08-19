@@ -592,6 +592,31 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   /* KPI cards */
   .kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:22px; }
   @media (max-width:1000px){ .kpi-grid{ grid-template-columns:repeat(2,1fr); } }
+
+  /* Executive Dashboard -- top-level Global Filter Bar (Business Unit / Sales
+     Rep / Currency) and the Pipeline-vs-Closed-Sales section headers used to
+     separate lead figures from completed-sales figures. Sticks to the top of
+     the viewport on scroll so the filters stay reachable no matter how far
+     down the page you are; sits below the fixed profile-fab (z-index 150). */
+  .dashboard-filter-bar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:12px;
+    padding:12px 18px; margin-bottom:20px; box-shadow:var(--shadow-card);
+  }
+  .dashboard-filter-group{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .dashboard-filter-label{
+    font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap;
+  }
+  .dashboard-section-title{
+    font-size:13px; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em;
+    margin:26px 0 10px; display:flex; align-items:baseline; gap:8px;
+  }
+  .dashboard-section-title:first-of-type{ margin-top:0; }
+  .dashboard-section-sub{ font-size:11px; font-weight:600; color:var(--text-muted); text-transform:none; letter-spacing:normal; }
+  @media (max-width:760px){
+    .dashboard-filter-bar{ position:static; }
+  }
   .card{
     position:relative; overflow:hidden;
     background:linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0)) , var(--surface-1);
@@ -1097,6 +1122,16 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
 
   /* Filters bar (Lead Pipeline) */
   .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; }
+  /* Sales Performance & Analytics filter bar -- adds a small muted "From"/"To"
+     label in front of each month-range dropdown pair (see MonthYearSelect),
+     since a bare pair of selects with no label reads ambiguously once there
+     are two of them side by side. */
+  .sales-filters-bar{ margin-bottom:16px; }
+  .filter-range-label{ font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em; }
+  /* Sales Performance & Analytics audit table -- every cell is a live input/
+     select, so a dirty (unsaved) row gets the same subtle highlight used by
+     Business Units & Targets' AllocationRow while a Save/Cancel pair is showing. */
+  .sales-table-row.row-dirty{ background:rgba(46,134,193,0.045); }
   .search-field{
     display:flex; align-items:center; gap:8px; flex:1; min-width:220px;
     background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:0 12px;
@@ -2992,6 +3027,102 @@ function repTargetToRow(t) {
     target_amount: t.targetAmount || 0
   };
 }
+// A management-entered "we actually closed this much" record — separate
+// from rep_targets (the quota a rep is on the hook for) and from leads
+// (individual pipeline deals). `month` is kept as the ISO "YYYY-MM" string
+// the month-picker produces, rather than split year/month ints like
+// rep_targets, so month-over-month ordering is a plain string sort and the
+// Sales Performance & Analytics screen can group/compare consecutive months
+// without reconstructing a date from two fields.
+function completedSaleFromRow(r) {
+  return {
+    id: r.id,
+    repName: r.rep_name || "",
+    businessUnit: r.business_unit || "",
+    month: r.month || "",
+    baseAmountUSD: Number(r.base_amount_usd) || 0
+  };
+}
+function completedSaleToRow(s) {
+  return {
+    rep_name: s.repName || "",
+    business_unit: s.businessUnit || "",
+    month: s.month || "",
+    base_amount_usd: s.baseAmountUSD || 0
+  };
+}
+
+// "Jan '26" -- compact enough to fit under a bar even when a filtered range
+// spans more than one calendar year (a plain "Jan" would be ambiguous then).
+function formatMonthLabel(key) {
+  const parts = String(key || "").split("-");
+  const y = Number(parts[0]),
+    m = Number(parts[1]);
+  if (!y || !m) return key || "";
+  return MONTH_NAMES[m - 1].slice(0, 3) + " '" + String(y).slice(2);
+}
+
+// Every "YYYY-MM" key from fromKey through toKey inclusive, in order --
+// used to build a continuous Month-over-Month x-axis (so a month with zero
+// completed sales still shows as a zero-height bar instead of silently
+// disappearing from the comparison). Guards against a reversed or absurdly
+// large range rather than looping unbounded.
+function monthsBetween(fromKey, toKey) {
+  const f = String(fromKey || "").split("-").map(Number);
+  const t = String(toKey || "").split("-").map(Number);
+  if (!f[0] || !f[1] || !t[0] || !t[1]) return [];
+  let y = f[0],
+    m = f[1];
+  const out = [];
+  let guard = 0;
+  while ((y < t[0] || y === t[0] && m <= t[1]) && guard < 240) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    guard++;
+  }
+  return out;
+}
+
+// Sums a set of completed-sales records into one total per month in
+// `monthKeys` (already in chronological order), then attaches each month's
+// %-change vs. the month right before it -- the exact figure the
+// SalesComparisonGraph's MoM badges and the SalesDataTable's "MoM Variance"
+// column both key off of, so the graph and the table can never disagree.
+// `delta` is null for the very first month (nothing to compare against) and
+// also whenever the prior month was exactly zero (a %, change from zero is
+// undefined -- shown as "New" rather than a misleading number).
+function computeSalesMonthlySeries(completedSales, monthKeys) {
+  const totals = monthKeys.map(k => (completedSales || []).filter(s => s.month === k).reduce((sum, s) => sum + (s.baseAmountUSD || 0), 0));
+  return monthKeys.map((k, i) => {
+    const value = totals[i];
+    const prev = i > 0 ? totals[i - 1] : null;
+    const delta = prev != null && prev > 0 ? (value - prev) / prev * 100 : null;
+    return {
+      key: k,
+      label: formatMonthLabel(k),
+      value,
+      delta
+    };
+  });
+}
+function salesStatusInfo(delta) {
+  if (delta == null) return {
+    label: "New",
+    hex: "#8b8a9a"
+  };
+  if (delta >= 0) return {
+    label: "Growing",
+    hex: "#2fd66c"
+  };
+  return {
+    label: "Declining",
+    hex: "#fb5858"
+  };
+}
 
 // Admin -> Rep announcements. `recipient` is either "All" (broadcast to
 // every Sales Rep) or a specific rep's name. `readBy` is a small JSON array
@@ -3444,6 +3575,34 @@ function IconUsers() {
     d: "M15.8 14.2c2.4.3 4.2 2 4.2 4.8",
     stroke: "currentColor",
     strokeWidth: "1.6",
+    strokeLinecap: "round"
+  }));
+}
+function IconBarChart() {
+  return /*#__PURE__*/React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: "18",
+    height: "18",
+    fill: "none"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M4 20V11",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M10 20V6",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M16 20V13",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
+    strokeLinecap: "round"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M3 20h18",
+    stroke: "currentColor",
+    strokeWidth: "1.8",
     strokeLinecap: "round"
   }));
 }
@@ -5433,6 +5592,11 @@ function getNavItems(isAdmin) {
       color: "currentColor"
     }),
     desc: "Set annual targets and allocate monthly quotas to reps by Business Unit."
+  }] : []), ...(isAdmin ? [{
+    id: "salesperformance",
+    label: "Sales Performance & Analytics",
+    icon: /*#__PURE__*/React.createElement(IconBarChart, null),
+    desc: "Log monthly completed sales and track Month-over-Month performance by rep and Business Unit."
   }] : []), {
     id: "productivity",
     label: "Productivity Tracker",
@@ -5845,11 +6009,22 @@ function parseImportNumber(v) {
 }
 function parseImportDate(v) {
   if (v == null || v === "") return "";
+  // SheetJS (cellDates:true) builds date-only cells at UTC midnight, so the
+  // UTC calendar date IS the date shown in the spreadsheet -- read it with
+  // UTC getters (equivalent to toISOString().slice(0,10)) here.
   if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
   const s = String(v).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const d = new Date(s);
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  if (isNaN(d.getTime())) return "";
+  // A plain string like "8/15/2026" (from a text-formatted spreadsheet
+  // column, or a CSV) is parsed by `new Date()` in LOCAL time, so it must be
+  // read back out with LOCAL getters, not toISOString(). Using
+  // toISOString() here (as this used to) shifts the date back a day for
+  // every timezone ahead of UTC -- e.g. "8/15/2026" imports as 2026-08-14
+  // for a user in Sri Lanka (UTC+5:30). Local getters match what the user
+  // actually typed/saw in their spreadsheet.
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 // Minimal RFC4180-ish CSV parser -- handles quoted fields, embedded commas,
 // embedded newlines inside quotes, and a doubled "" for a literal quote.
@@ -13436,9 +13611,12 @@ function Dashboard({
   log,
   businessUnits,
   repTargets,
+  completedSales,
   selectedRep,
+  setSelectedRep,
   timeframe,
   currency,
+  setCurrency,
   rate,
   onJumpToLead,
   showTeamBreakdown,
@@ -13447,17 +13625,32 @@ function Dashboard({
   const fmt = makeMoneyFormatter(currency, rate);
   const fmtCompact = makeCompactMoneyFormatter(currency, rate);
   const isScoped = selectedRep !== "All";
-  const scopedLeads = selectedRep === "All" ? leads : leads.filter(l => l.assignedRep === selectedRep);
+
+  // New top-level Global Filter Bar -- a Business Unit filter local to this
+  // dashboard (Rep scope and Currency are already app-wide state, surfaced
+  // here too so every control that narrows what the dashboard shows lives
+  // in one prominent place instead of being scattered between the header
+  // toolbar and individual chart cards). Selecting a specific Business Unit
+  // cascades through every figure below -- KPIs, charts, the leaderboard --
+  // via `scopedLeads`/`scopedCompletedSales`, exactly like the Rep scope
+  // already did, so "Enterprise" always means the same thing everywhere on
+  // the page instead of some cards honoring it and others not.
+  const [dashBuFilter, setDashBuFilter] = useState("All");
+  const buFilterName = dashBuFilter === "All" ? null : dashBuFilter;
+  const scopedLeads = leads.filter(l => (selectedRep === "All" || l.assignedRep === selectedRep) && (!buFilterName || l.businessUnit === buFilterName));
 
   // Target progress for the KPI strip — follows whichever timeframe the
-  // toolbar is set to (Monthly vs. Yearly), and narrows to just the
-  // selected rep's own allocation when the view is scoped to one rep.
+  // toolbar is set to (Monthly vs. Yearly), narrows to just the selected
+  // rep's own allocation when the view is scoped to one rep, and now also
+  // narrows to the selected Business Unit (computeRepTargetStats already
+  // accepted a businessUnitName filter; it just wasn't wired up to a UI
+  // control here before this).
   const targetProgress = useMemo(() => {
     const taYear = timeframe.mode === "monthly" ? Number(timeframe.monthAnchor.slice(0, 4)) : Number(timeframe.yearAnchor);
     const taMonth = timeframe.mode === "monthly" ? Number(timeframe.monthAnchor.slice(5, 7)) : null;
     if (isScoped) {
       const repObj = reps.find(r => r.name === selectedRep);
-      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, taMonth, null) : [];
+      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, taMonth, buFilterName) : [];
       const s = stats[0] || {
         target: 0,
         actual: 0,
@@ -13470,8 +13663,8 @@ function Dashboard({
       };
     }
     if (timeframe.mode === "yearly") {
-      const target = businessUnits.reduce((s, b) => s + b.annualTarget, 0);
-      const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear)).reduce((s, l) => s + (l.value || 0), 0);
+      const target = (buFilterName ? businessUnits.filter(b => b.name === buFilterName) : businessUnits).reduce((s, b) => s + b.annualTarget, 0);
+      const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear) && (!buFilterName || l.businessUnit === buFilterName)).reduce((s, l) => s + (l.value || 0), 0);
       const pct = target > 0 ? Math.round(actual / target * 100) : actual > 0 ? 100 : 0;
       return {
         target,
@@ -13479,7 +13672,7 @@ function Dashboard({
         pct
       };
     }
-    const stats = computeRepTargetStats(reps, repTargets, leads, taYear, taMonth, null);
+    const stats = computeRepTargetStats(reps, repTargets, leads, taYear, taMonth, buFilterName);
     const target = stats.reduce((s, x) => s + x.target, 0);
     const actual = stats.reduce((s, x) => s + x.actual, 0);
     const pct = target > 0 ? Math.round(actual / target * 100) : actual > 0 ? 100 : 0;
@@ -13488,13 +13681,9 @@ function Dashboard({
       actual,
       pct
     };
-  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, timeframe.mode, timeframe.monthAnchor, timeframe.yearAnchor]);
+  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, buFilterName, timeframe.mode, timeframe.monthAnchor, timeframe.yearAnchor]);
   const periods = timeframe.mode === "monthly" ? getLastNMonthsFromAnchor(6, timeframe.monthAnchor) : getLastNYearsFromAnchor(5, timeframe.yearAnchor);
   const trend = revenueByPeriod(scopedLeads, periods, timeframe.mode);
-  const totalRevenue = trend.reduce((s, t) => s + t.value, 0);
-  const lastVal = trend.length ? trend[trend.length - 1].value : 0;
-  const prevVal = trend.length > 1 ? trend[trend.length - 2].value : 0;
-  const salesIncreasePct = prevVal > 0 ? Math.round((lastVal - prevVal) / prevVal * 100) : lastVal > 0 ? 100 : 0;
   const decidedLeads = scopedLeads.filter(l => l.stage === "Closed Won" || l.stage === "Closed Lost");
   const wonLeads = scopedLeads.filter(l => l.stage === "Closed Won");
   const winRate = decidedLeads.length > 0 ? Math.round(wonLeads.length / decidedLeads.length * 100) : 0;
@@ -13515,15 +13704,17 @@ function Dashboard({
       color: STAGE_COLOR_HEX[s]
     };
   });
-  const repStats = computeRepStats(reps, leads, currency, rate);
-  const revenueByRep = repStats.map(s => ({
-    label: s.rep.name,
-    value: s.revenue,
-    color: s.color
-  }));
   const trendColored = trend.map(t => ({
     ...t
   }));
+
+  // --- Section A: Pipeline Metrics (Leads & Opportunities) -----------------
+  // "Active" deliberately excludes Closed Won/Closed Lost -- this is meant
+  // to answer "how much is still in motion right now", not a lifetime total.
+  const activeLeads = scopedLeads.filter(l => l.stage !== "Closed Won" && l.stage !== "Closed Lost");
+  const totalActiveLeadsCount = activeLeads.length;
+  const totalPipelineValue = activeLeads.reduce((s, l) => s + (l.value || 0), 0);
+  const avgLeadValue = totalActiveLeadsCount > 0 ? totalPipelineValue / totalActiveLeadsCount : 0;
 
   // --- Advanced financial, forecasting & efficiency analytics (appended) ---
   const weightedPipelineValue = computeWeightedPipelineValue(scopedLeads);
@@ -13540,7 +13731,7 @@ function Dashboard({
     const taYear = Number(timeframe.yearAnchor) || new Date().getFullYear();
     if (isScoped) {
       const repObj = reps.find(r => r.name === selectedRep);
-      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, null, null) : [];
+      const stats = repObj ? computeRepTargetStats([repObj], repTargets, leads, taYear, null, buFilterName) : [];
       const s = stats[0] || {
         target: 0,
         actual: 0
@@ -13550,18 +13741,67 @@ function Dashboard({
         actual: s.actual
       };
     }
-    const target = businessUnits.reduce((s, b) => s + b.annualTarget, 0);
-    const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear)).reduce((s, l) => s + (l.value || 0), 0);
+    const target = (buFilterName ? businessUnits.filter(b => b.name === buFilterName) : businessUnits).reduce((s, b) => s + b.annualTarget, 0);
+    const actual = leads.filter(l => l.stage === "Closed Won" && l.closedDate && l.closedDate.slice(0, 4) === String(taYear) && (!buFilterName || l.businessUnit === buFilterName)).reduce((s, l) => s + (l.value || 0), 0);
     return {
       target,
       actual
     };
-  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, timeframe.yearAnchor]);
-  const revenueByBU = computeRevenueByBusinessUnit(scopedLeads, businessUnits);
+  }, [isScoped, selectedRep, reps, repTargets, leads, businessUnits, buFilterName, timeframe.yearAnchor]);
   const sourceRoiData = computeSourceRoi(scopedLeads);
   const stageFunnelData = computeStageFunnel(scopedLeads);
   const reasonLostData = computeReasonLostBreakdown(scopedLeads);
   const coverageColor = pipelineCoverageColor(isFinite(pipelineCoverageRatio) ? pipelineCoverageRatio : 3);
+
+  // --- Section B: Closed Sales Performance (Actual Revenue) ----------------
+  // Same last-6-months window the Revenue Growth Trend chart above uses when
+  // the toolbar is in Monthly mode, so both charts on this dashboard are
+  // always looking at the same span of time; falls back to "last 6 months
+  // ending today" while the toolbar is in Yearly mode (a MoM comparison
+  // doesn't have a meaningful yearly-anchor equivalent). scopedCompletedSales
+  // now honors the Business Unit filter too, same as scopedLeads above.
+  const salesMonthKeys = (timeframe.mode === "monthly" ? getLastNMonthsFromAnchor(6, timeframe.monthAnchor) : getLastNMonthsFromAnchor(6, currentMonthKey())).map(p => p.key);
+  const scopedCompletedSales = (completedSales || []).filter(s => (!isScoped || s.repName === selectedRep) && (!buFilterName || s.businessUnit === buFilterName));
+  const completedSalesSeries = useMemo(() => computeSalesMonthlySeries(scopedCompletedSales, salesMonthKeys), [scopedCompletedSales, salesMonthKeys.join(",")]);
+  const completedSalesInWindow = scopedCompletedSales.filter(s => salesMonthKeys.includes(s.month));
+  const completedSalesTotal = completedSalesInWindow.reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
+  const avgDealSizeClosed = completedSalesInWindow.length > 0 ? completedSalesTotal / completedSalesInWindow.length : 0;
+  const lastSalesSeriesEntry = completedSalesSeries[completedSalesSeries.length - 1];
+  const momGrowthPct = lastSalesSeriesEntry ? lastSalesSeriesEntry.delta : null;
+
+  // --- Business Unit Performance View --------------------------------------
+  // "All Business Units" selected -> one bar-group per BU, a comparative
+  // summary; a specific BU selected -> the exact same chart naturally
+  // collapses to that BU's single group ("isolate and show performance
+  // metrics exclusively for that unit" without needing a second code path).
+  const buPerformanceData = useMemo(() => {
+    const list = buFilterName ? businessUnits.filter(b => b.name === buFilterName) : businessUnits;
+    return list.map(b => {
+      const pipelineValue = scopedLeads.filter(l => l.businessUnit === b.name && l.stage !== "Closed Won" && l.stage !== "Closed Lost").reduce((s, l) => s + (l.value || 0), 0);
+      const closedSales = scopedCompletedSales.filter(s => s.businessUnit === b.name && salesMonthKeys.includes(s.month)).reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
+      return {
+        label: b.name,
+        values: [pipelineValue, closedSales]
+      };
+    });
+  }, [businessUnits, buFilterName, scopedLeads, scopedCompletedSales, salesMonthKeys.join(",")]);
+
+  // --- Sales Rep Leaderboard ------------------------------------------------
+  // Ranked by pipeline + closed sales combined, within whatever Rep/BU scope
+  // is currently active -- a rep-scoped view naturally shows just that one
+  // rep's row, same "the filter cascades everywhere" principle as above.
+  const repLeaderboard = useMemo(() => {
+    const repList = isScoped ? reps.filter(r => r.name === selectedRep) : reps;
+    return repList.map(r => {
+      const pipelineValue = scopedLeads.filter(l => l.assignedRep === r.name && l.stage !== "Closed Won" && l.stage !== "Closed Lost").reduce((s, l) => s + (l.value || 0), 0);
+      const closedSales = scopedCompletedSales.filter(s => s.repName === r.name && salesMonthKeys.includes(s.month)).reduce((s, x) => s + (x.baseAmountUSD || 0), 0);
+      return {
+        rep: r,
+        pipelineValue,
+        closedSales
+      };
+    }).filter(x => x.pipelineValue > 0 || x.closedSales > 0).sort((a, b) => b.pipelineValue + b.closedSales - (a.pipelineValue + a.closedSales));
+  }, [reps, isScoped, selectedRep, scopedLeads, scopedCompletedSales, salesMonthKeys.join(",")]);
 
   // Rep Performance vs. Target -- the same quota-attainment cards from the
   // Business Units & Targets tab, surfaced here too so an Admin can see every
@@ -13575,8 +13815,8 @@ function Dashboard({
   const repPerfMonthYear = Number(timeframe.monthAnchor.slice(0, 4));
   const repPerfMonth = Number(timeframe.monthAnchor.slice(5, 7));
   const repPerfYear = Number(timeframe.yearAnchor) || new Date().getFullYear();
-  const repPerfMonthlyStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfMonthYear, repPerfMonth, null), [reps, repTargets, leads, repPerfMonthYear, repPerfMonth]);
-  const repPerfAnnualStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfYear, null, null), [reps, repTargets, leads, repPerfYear]);
+  const repPerfMonthlyStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfMonthYear, repPerfMonth, buFilterName), [reps, repTargets, leads, repPerfMonthYear, repPerfMonth, buFilterName]);
+  const repPerfAnnualStats = useMemo(() => computeRepTargetStats(reps, repTargets, leads, repPerfYear, null, buFilterName), [reps, repTargets, leads, repPerfYear, buFilterName]);
   const repPerfNames = Array.from(new Set([...repPerfMonthlyStats.map(s => s.rep.name), ...repPerfAnnualStats.map(s => s.rep.name)]));
   const repPerfStats = repPerfNames.map(name => {
     const rep = reps.find(r => r.name === name);
@@ -13662,40 +13902,155 @@ function Dashboard({
     className: "page-title"
   }, isScoped ? "My Dashboard" : "Executive Dashboard"), /*#__PURE__*/React.createElement("div", {
     className: "page-sub"
-  }, isScoped ? `Scoped to ${selectedRep}` : "Full team", " · ", timeframe.mode === "monthly" ? "Monthly view" : "Yearly view")), !isScoped && /*#__PURE__*/React.createElement("div", {
+  }, isScoped ? `Scoped to ${selectedRep}` : "Full team", buFilterName ? ` · ${buFilterName}` : "", " · ", timeframe.mode === "monthly" ? "Monthly view" : "Yearly view")), !isScoped && /*#__PURE__*/React.createElement("div", {
     className: "panel-actions no-print"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn ghost",
     onClick: handleExportPdf,
     disabled: printing,
     title: "Export this dashboard as a structured PDF report"
-  }, /*#__PURE__*/React.createElement(IconDownload, null), "\xA0 ", printing ? "Preparing…" : "Export to PDF"))), /*#__PURE__*/React.createElement(AlertsBanner, {
+  }, /*#__PURE__*/React.createElement(IconDownload, null), "\xA0 ", printing ? "Preparing…" : "Export to PDF"))), /*#__PURE__*/React.createElement(DashboardFilterBar, {
+    businessUnits: businessUnits,
+    buFilter: dashBuFilter,
+    setBuFilter: setDashBuFilter,
+    reps: reps,
+    selectedRep: selectedRep,
+    setSelectedRep: setSelectedRep,
+    isAdmin: showTeamBreakdown,
+    currency: currency,
+    setCurrency: setCurrency,
+    rate: rate
+  }), /*#__PURE__*/React.createElement(AlertsBanner, {
     leads: scopedLeads,
     reps: reps,
     onJumpToLead: onJumpToLead
   }), /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-section-title"
+  }, "Pipeline Metrics ", /*#__PURE__*/React.createElement("span", {
+    className: "dashboard-section-sub"
+  }, "— Leads & Opportunities")), /*#__PURE__*/React.createElement("div", {
     className: "kpi-grid"
   }, /*#__PURE__*/React.createElement(KpiCard, {
-    label: isScoped ? "My Revenue" : "Total Revenue",
-    value: fmt(totalRevenue),
+    label: "Total Active Leads",
+    value: totalActiveLeadsCount,
+    icon: /*#__PURE__*/React.createElement(IconFunnel, null),
+    iconColor: "var(--accent-orange)",
+    iconBg: "rgba(255,153,0,0.14)",
+    caption: `Excludes Closed Won/Lost${buFilterName ? ` · ${buFilterName}` : ""}`
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Total Estimated Pipeline Value",
+    value: fmt(totalPipelineValue),
     icon: /*#__PURE__*/React.createElement(IconDollar, {
       color: "var(--accent-blue)"
     }),
     iconColor: "var(--accent-blue)",
     iconBg: "rgba(0,136,255,0.14)",
-    caption: `Closed-won across ${periods.length} ${timeframe.mode === "monthly" ? "months" : "years"}`
+    caption: "Sum of every active lead's deal value"
   }), /*#__PURE__*/React.createElement(KpiCard, {
-    label: timeframe.mode === "monthly" ? "Sales Increase (MoM)" : "Sales Increase (YoY)",
-    value: `${salesIncreasePct >= 0 ? "+" : ""}${salesIncreasePct}%`,
-    icon: /*#__PURE__*/React.createElement(IconTrend, {
-      color: salesIncreasePct >= 0 ? "var(--status-good)" : "var(--status-critical)",
-      up: salesIncreasePct >= 0
+    label: "Average Lead Value",
+    value: fmt(avgLeadValue),
+    icon: /*#__PURE__*/React.createElement(IconGauge, {
+      color: "var(--accent-aqua)"
     }),
-    iconColor: salesIncreasePct >= 0 ? "var(--status-good)" : "var(--status-critical)",
-    iconBg: salesIncreasePct >= 0 ? "rgba(47,214,108,0.14)" : "rgba(251,88,88,0.14)",
-    deltaText: `vs prior ${timeframe.mode === "monthly" ? "month" : "year"}`,
-    deltaGood: salesIncreasePct >= 0
+    iconColor: "var(--accent-aqua)",
+    iconBg: "rgba(34,201,142,0.14)",
+    caption: `Across ${totalActiveLeadsCount} active lead${totalActiveLeadsCount === 1 ? "" : "s"}`
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "charts-grid",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement(LineChartCard, {
+    title: "Revenue Growth Trend",
+    sub: timeframe.mode === "monthly" ? "Closed-won LEAD revenue, last 6 months" : "Closed-won LEAD revenue, last 5 years",
+    data: trendColored,
+    color: "#0088FF",
+    formatValue: fmtCompact
+  }), /*#__PURE__*/React.createElement(BarChartCard, {
+    title: "Pipeline Stage Breakdown",
+    sub: "Deal value & lead count by stage",
+    data: stageData,
+    formatValue: fmtCompact
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-section-title"
+  }, "Closed Sales Performance ", /*#__PURE__*/React.createElement("span", {
+    className: "dashboard-section-sub"
+  }, "— Actual Revenue")), /*#__PURE__*/React.createElement("div", {
+    className: "kpi-grid"
+  }, /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Total Completed Sales Revenue",
+    value: fmt(completedSalesTotal),
+    icon: /*#__PURE__*/React.createElement(IconDollar, {
+      color: "var(--status-good)"
+    }),
+    iconColor: "var(--status-good)",
+    iconBg: "rgba(47,214,108,0.14)",
+    caption: `Logged in Sales Performance & Analytics, last ${salesMonthKeys.length} months`
   }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: timeframe.mode === "monthly" ? "MoM Growth" : "Growth vs. Prior Month",
+    value: momGrowthPct == null ? "New" : `${momGrowthPct >= 0 ? "+" : ""}${momGrowthPct.toFixed(1)}%`,
+    icon: /*#__PURE__*/React.createElement(IconTrend, {
+      color: momGrowthPct == null ? "var(--text-muted)" : momGrowthPct >= 0 ? "var(--status-good)" : "var(--status-critical)",
+      up: momGrowthPct == null || momGrowthPct >= 0
+    }),
+    iconColor: momGrowthPct == null ? "var(--text-muted)" : momGrowthPct >= 0 ? "var(--status-good)" : "var(--status-critical)",
+    iconBg: momGrowthPct == null ? "rgba(139,138,154,0.14)" : momGrowthPct >= 0 ? "rgba(47,214,108,0.14)" : "rgba(251,88,88,0.14)",
+    caption: "Completed sales, latest logged month vs. prior"
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Average Deal Size Closed",
+    value: fmt(avgDealSizeClosed),
+    icon: /*#__PURE__*/React.createElement(IconTarget, {
+      color: "var(--accent-orange)"
+    }),
+    iconColor: "var(--accent-orange)",
+    iconBg: "rgba(255,153,0,0.14)",
+    caption: `Across ${completedSalesInWindow.length} completed sale${completedSalesInWindow.length === 1 ? "" : "s"}`
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "charts-grid",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement(SalesComparisonGraph, {
+    data: completedSalesSeries,
+    formatValue: fmtCompact
+  }), /*#__PURE__*/React.createElement(GroupedBarChartCard, {
+    title: "Business Unit Performance",
+    sub: buFilterName ? `Pipeline value vs. closed sales — ${buFilterName}` : "Pipeline value vs. closed sales, by Business Unit",
+    data: buPerformanceData,
+    seriesLabels: ["Pipeline Value", "Closed Sales"],
+    seriesColors: ["#0088FF", "#22c98e"],
+    formatValue: fmtCompact
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "card",
+    style: {
+      marginTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Sales Rep Leaderboard")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "Active pipeline value vs. completed sales revenue", buFilterName ? ` — ${buFilterName}` : "", ", ranked by total"), repLeaderboard.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "empty-feed",
+    style: {
+      marginTop: 12
+    }
+  }, "No pipeline or completed sales data for this selection yet.") : /*#__PURE__*/React.createElement("div", {
+    className: "table-wrap",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "#"), /*#__PURE__*/React.createElement("th", null, "Sales Rep"), /*#__PURE__*/React.createElement("th", null, "Active Pipeline Value"), /*#__PURE__*/React.createElement("th", null, "Completed Sales Revenue"))), /*#__PURE__*/React.createElement("tbody", null, repLeaderboard.map((row, i) => /*#__PURE__*/React.createElement("tr", {
+    key: row.rep.id
+  }, /*#__PURE__*/React.createElement("td", null, i + 1), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(RepBadge, {
+    reps: reps,
+    name: row.rep.name
+  })), /*#__PURE__*/React.createElement("td", null, fmt(row.pipelineValue)), /*#__PURE__*/React.createElement("td", null, fmt(row.closedSales)))))))), /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-section-title"
+  }, "Additional Metrics"), /*#__PURE__*/React.createElement("div", {
+    className: "kpi-grid"
+  }, /*#__PURE__*/React.createElement(KpiCard, {
     label: "Lead Win Rate",
     value: `${winRate}%`,
     icon: /*#__PURE__*/React.createElement(IconTarget, {
@@ -13758,19 +14113,6 @@ function Dashboard({
     iconBg: hexToRgba(coverageColor, 0.14),
     caption: remainingTargetForCoverage > 0 ? `${fmtCompact(openPipelineTotal)} open vs ${fmtCompact(remainingTargetForCoverage)} remaining target` : "Remaining target already met"
   })), /*#__PURE__*/React.createElement("div", {
-    className: "charts-grid"
-  }, /*#__PURE__*/React.createElement(LineChartCard, {
-    title: "Revenue Growth Trend",
-    sub: timeframe.mode === "monthly" ? "Closed-won revenue, last 6 months" : "Closed-won revenue, last 5 years",
-    data: trendColored,
-    color: "#0088FF",
-    formatValue: fmtCompact
-  }), /*#__PURE__*/React.createElement(BarChartCard, {
-    title: "Pipeline Stage Breakdown",
-    sub: "Deal value & lead count by stage",
-    data: stageData,
-    formatValue: fmtCompact
-  })), /*#__PURE__*/React.createElement("div", {
     className: "charts-grid",
     style: {
       marginTop: 16
@@ -13782,16 +14124,6 @@ function Dashboard({
     color: "#ff9900",
     formatValue: v => Math.round(v),
     yMax: 100
-  })), showTeamBreakdown && /*#__PURE__*/React.createElement("div", {
-    className: "charts-grid",
-    style: {
-      marginTop: 16
-    }
-  }, /*#__PURE__*/React.createElement(HorizontalBarChartCard, {
-    title: "Team Revenue Contribution",
-    sub: "Closed-won revenue by sales rep (full team)",
-    data: revenueByRep,
-    formatValue: fmtCompact
   })), showTeamBreakdown && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
@@ -13829,34 +14161,21 @@ function Dashboard({
     actual: annualGap.actual,
     target: annualGap.target,
     formatValue: fmtCompact
-  }), /*#__PURE__*/React.createElement(RingChartCard, {
-    title: "Revenue Distribution by Business Unit",
-    sub: "Closed-won revenue share across business units",
-    data: revenueByBU,
-    formatValue: fmtCompact,
-    innerRadiusRatio: 0.62,
-    centerLabel: "Total Revenue",
-    emptyText: "No closed-won revenue tagged to a Business Unit yet."
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "charts-grid",
-    style: {
-      marginTop: 16
-    }
-  }, /*#__PURE__*/React.createElement(SourceRoiChartCard, {
+  }), /*#__PURE__*/React.createElement(SourceRoiChartCard, {
     title: "Lead Source ROI & Win Rates",
     sub: "Closed-won revenue and win rate by lead source",
     data: sourceRoiData,
     formatValue: fmtCompact
-  }), /*#__PURE__*/React.createElement(StageFunnelChartCard, {
-    title: "Stage Conversion Funnel",
-    sub: "Leads currently at or beyond each stage (Closed Lost excluded — see caption below)",
-    data: stageFunnelData
   })), /*#__PURE__*/React.createElement("div", {
     className: "charts-grid",
     style: {
       marginTop: 16
     }
-  }, /*#__PURE__*/React.createElement(RingChartCard, {
+  }, /*#__PURE__*/React.createElement(StageFunnelChartCard, {
+    title: "Stage Conversion Funnel",
+    sub: "Leads currently at or beyond each stage (Closed Lost excluded — see caption below)",
+    data: stageFunnelData
+  }), /*#__PURE__*/React.createElement(RingChartCard, {
     title: "Reason Lost Breakdown",
     sub: "Closed-lost deals by reason",
     data: reasonLostData,
@@ -13870,6 +14189,81 @@ function Dashboard({
     rate: rate,
     onJumpToLead: onJumpToLead
   }));
+}
+
+// New top-level Global Filter Bar for the Executive Dashboard -- Business
+// Unit, Sales Rep, and Currency all in one prominent, sticky strip at the
+// very top of the page so every figure below reads consistently instead of
+// each chart card carrying its own scattered filter control. The Currency
+// control here is a lightweight read-only-rate toggle (just USD/LKR) --
+// editing the actual exchange rate stays solely in the header's
+// CurrencyControl, so there's exactly one place to change the rate itself.
+function DashboardFilterBar({
+  businessUnits,
+  buFilter,
+  setBuFilter,
+  reps,
+  selectedRep,
+  setSelectedRep,
+  isAdmin,
+  currency,
+  setCurrency,
+  rate
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-filter-bar no-print"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-filter-group"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "dashboard-filter-label"
+  }, "Business Unit"), /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, buFilter !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: buFilter
+  }), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: buFilter,
+    onChange: e => setBuFilter(e.target.value),
+    title: "Filter the whole dashboard by Business Unit"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "All"
+  }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name))))), /*#__PURE__*/React.createElement("span", {
+    className: "toolbar-divider"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-filter-group"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "dashboard-filter-label"
+  }, "Sales Rep"), isAdmin ? /*#__PURE__*/React.createElement(RepSelector, {
+    reps: reps,
+    selectedRep: selectedRep,
+    setSelectedRep: setSelectedRep
+  }) : /*#__PURE__*/React.createElement(LockedRepChip, {
+    reps: reps,
+    repName: selectedRep
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "toolbar-divider"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "dashboard-filter-group"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "dashboard-filter-label"
+  }, "Currency"), /*#__PURE__*/React.createElement("div", {
+    className: "seg-toggle",
+    role: "tablist",
+    "aria-label": "Currency",
+    title: `Synced with the app's exchange rate — 1 USD = ${rate} LKR`
+  }, ["USD", "LKR"].map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    type: "button",
+    className: "seg-btn" + (currency === c ? " active" : ""),
+    onClick: () => setCurrency(c)
+  }, c)))));
 }
 
 /* ---------------------------------------------------------------------- */
@@ -14445,6 +14839,822 @@ function ProductivityLog({
 }
 
 /* ---------------------------------------------------------------------- */
+/* Sales Performance & Analytics — monthly completed sales input,          */
+/* Month-over-Month comparison graph, multi-filter audit table.            */
+/* ---------------------------------------------------------------------- */
+
+// One "YYYY-MM" dropdown pair -- deliberately NOT a native <input
+// type="month"> (same reasoning as TimeframeToggle above: inconsistent
+// rendering across browsers/webviews). Used twice per filter bar (From/To)
+// to build a month RANGE, which no other screen in the app needed before.
+function MonthYearSelect({
+  value,
+  onChange,
+  years,
+  title
+}) {
+  const parts = String(value || currentMonthKey()).split("-");
+  const y = parts[0],
+    m = parts[1] || "01";
+  function setMonth(mm) {
+    onChange(`${y}-${String(mm).padStart(2, "0")}`);
+  }
+  function setYear(yy) {
+    onChange(`${yy}-${m}`);
+  }
+  return /*#__PURE__*/React.createElement("span", {
+    className: "timeframe-group",
+    title: title
+  }, /*#__PURE__*/React.createElement("select", {
+    className: "select timeframe-anchor",
+    value: Number(m),
+    onChange: e => setMonth(e.target.value)
+  }, MONTH_NAMES.map((mn, i) => /*#__PURE__*/React.createElement("option", {
+    key: mn,
+    value: i + 1
+  }, mn))), /*#__PURE__*/React.createElement("select", {
+    className: "select timeframe-anchor timeframe-anchor-year",
+    value: y,
+    onChange: e => setYear(e.target.value)
+  }, (years.includes(y) ? years : [...years, y].sort()).map(yy => /*#__PURE__*/React.createElement("option", {
+    key: yy,
+    value: yy
+  }, yy))));
+}
+function SalesFilterBar({
+  businessUnits,
+  reps,
+  filterBU,
+  setFilterBU,
+  filterRep,
+  setFilterRep,
+  monthFrom,
+  setMonthFrom,
+  monthTo,
+  setMonthTo,
+  filtersActive,
+  onClear
+}) {
+  const years = getLastNYearsFromAnchor(8, currentYearStr()).map(y => y.key).reverse();
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card filters-bar sales-filters-bar"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, filterBU !== "All" && /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: filterBU
+  }), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: filterBU,
+    onChange: e => setFilterBU(e.target.value),
+    title: "Filter by Business Unit"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "All"
+  }, "All Business Units"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name)))), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: filterRep,
+    onChange: e => setFilterRep(e.target.value),
+    title: "Filter by Sales Rep"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "All"
+  }, "All Reps"), reps.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r.id,
+    value: r.name
+  }, r.name))), /*#__PURE__*/React.createElement("span", {
+    className: "filter-range-label"
+  }, "From"), /*#__PURE__*/React.createElement(MonthYearSelect, {
+    value: monthFrom,
+    onChange: setMonthFrom,
+    years: years,
+    title: "Range start"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "filter-range-label"
+  }, "To"), /*#__PURE__*/React.createElement(MonthYearSelect, {
+    value: monthTo,
+    onChange: setMonthTo,
+    years: years,
+    title: "Range end"
+  }), filtersActive && /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost",
+    onClick: onClear
+  }, "Clear Filters"));
+}
+
+// Sales Rep, Business Unit, Target Month/Year and a currency-aware amount
+// field. The amount is typed in whatever currency is currently active
+// (USD or LKR) and converted to USD via toBaseUSD before it's ever handed
+// to the caller -- every other money value in this app is stored the same
+// way, so a currency toggle later never has to touch stored data, only
+// how it's displayed.
+function SalesEntryForm({
+  onAdd,
+  reps,
+  businessUnits,
+  currency,
+  rate
+}) {
+  const now = new Date();
+  const [rep, setRep] = useState(reps[0] && reps[0].name || "");
+  const [businessUnit, setBusinessUnit] = useState("");
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(String(now.getFullYear()));
+  const [amount, setAmount] = useState("");
+  const years = getLastNYearsFromAnchor(8, currentYearStr()).map(y => y.key).reverse();
+  const symbol = CURRENCY_SYMBOL[currency] || "$";
+  function submit() {
+    if (!rep) {
+      window.alert("Add a Sales Rep first (see User Management), then pick them here.");
+      return;
+    }
+    const n = Number(amount) || 0;
+    if (n <= 0) {
+      window.alert("Enter a completed sales amount greater than zero.");
+      return;
+    }
+    const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+    onAdd({
+      repName: rep,
+      businessUnit,
+      month: monthStr,
+      baseAmountUSD: toBaseUSD(n, currency, rate)
+    });
+    setAmount("");
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Log Completed Sale")), /*#__PURE__*/React.createElement("div", {
+    className: "drawer-grid",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("label", null, "Sales Rep", /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: rep,
+    onChange: e => setRep(e.target.value)
+  }, reps.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r.id,
+    value: r.name
+  }, r.name)))), /*#__PURE__*/React.createElement("label", null, "Business Unit", /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: businessUnit
+  }), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: businessUnit,
+    onChange: e => setBusinessUnit(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "No Business Unit"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name))))), /*#__PURE__*/React.createElement("label", null, "Target Month", /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: month,
+    onChange: e => setMonth(Number(e.target.value))
+  }, MONTH_NAMES.map((m, i) => /*#__PURE__*/React.createElement("option", {
+    key: m,
+    value: i + 1
+  }, m)))), /*#__PURE__*/React.createElement("label", null, "Target Year", /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: year,
+    onChange: e => setYear(e.target.value)
+  }, (years.includes(year) ? years : [...years, year].sort()).map(y => /*#__PURE__*/React.createElement("option", {
+    key: y,
+    value: y
+  }, y)))), /*#__PURE__*/React.createElement("label", null, "Completed Sales Amount (", currency === "LKR" ? "Rs" : symbol, ")", /*#__PURE__*/React.createElement(MoneyAmountInput, {
+    className: "input",
+    value: amount,
+    onChange: setAmount,
+    placeholder: symbol + "0"
+  }))), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    style: {
+      marginTop: 14
+    },
+    onClick: submit
+  }, /*#__PURE__*/React.createElement(IconPlus, null), "\xA0 Submit Sales Record"));
+}
+
+// Single-series bar chart, modeled directly on BarChartCard above, with one
+// addition: a colored Month-over-Month %-badge drawn just above each bar's
+// value label (green = growth, red = decline, omitted for the first bar and
+// for any month with nothing to compare against). Extra top padding (padT)
+// vs. BarChartCard makes room for that second line of text.
+function SalesComparisonGraph({
+  data,
+  formatValue
+}) {
+  const wrapRef = useRef(null);
+  const [hoverIdx, setHoverIdx] = useState(null);
+  const [mouse, setMouse] = useState({
+    x: 0,
+    y: 0
+  });
+  const W = 640,
+    H = 280;
+  const padR = 14,
+    padT = 40,
+    padB = 42;
+  const maxVal = Math.max(10, ...data.map(d => d.value)) * 1.2;
+  const niceMax = Math.ceil(maxVal / 5) * 5 || 10;
+  const yAxisLabels = [0, 1, 2, 3, 4].map(i => formatValue(niceMax - niceMax / 4 * i));
+  const maxLabelChars = Math.max(3, ...yAxisLabels.map(s => String(s).length));
+  const padL = Math.max(46, Math.round(maxLabelChars * 6.2) + 16);
+  const plotW = W - padL - padR,
+    plotH = H - padT - padB;
+  const n = Math.max(data.length, 1);
+  const gap = 14;
+  const barW = (plotW - gap * (n - 1)) / n;
+  const gridLines = [0, 1, 2, 3, 4].map(i => padT + plotH / 4 * i);
+  function handleMove(e, i) {
+    const rect = wrapRef.current.getBoundingClientRect();
+    setHoverIdx(i);
+    setMouse({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card chart-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Completed Sales — Month-over-Month")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "Total completed sales across consecutive months, in the active currency"), /*#__PURE__*/React.createElement("div", {
+    className: "chart-wrap",
+    ref: wrapRef
+  }, data.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "empty-feed",
+    style: {
+      padding: "36px 0"
+    }
+  }, "No completed sales for this selection yet.") : /*#__PURE__*/React.createElement("svg", {
+    viewBox: `0 0 ${W} ${H}`,
+    width: "100%",
+    height: H,
+    style: {
+      display: "block"
+    }
+  }, gridLines.map((gy, i) => /*#__PURE__*/React.createElement("line", {
+    key: i,
+    x1: padL,
+    x2: W - padR,
+    y1: gy,
+    y2: gy,
+    stroke: "var(--grid)",
+    strokeWidth: "1"
+  })), /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: padL,
+    y1: padT,
+    y2: padT + plotH,
+    stroke: "var(--baseline)",
+    strokeWidth: "1"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: padL,
+    x2: W - padR,
+    y1: padT + plotH,
+    y2: padT + plotH,
+    stroke: "var(--baseline)",
+    strokeWidth: "1"
+  }), gridLines.map((gy, i) => /*#__PURE__*/React.createElement("text", {
+    key: "t" + i,
+    x: padL - 8,
+    y: gy + 3,
+    fontSize: "9.5",
+    textAnchor: "end",
+    fill: "var(--text-muted)"
+  }, yAxisLabels[i])), /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("linearGradient", {
+    id: "sales-mom-grad",
+    x1: "0",
+    y1: "0",
+    x2: "0",
+    y2: "1"
+  }, /*#__PURE__*/React.createElement("stop", {
+    offset: "0%",
+    stopColor: "#0088FF",
+    stopOpacity: "1"
+  }), /*#__PURE__*/React.createElement("stop", {
+    offset: "100%",
+    stopColor: "#0088FF",
+    stopOpacity: "0.55"
+  }))), data.map((d, i) => {
+    const x = padL + i * (barW + gap);
+    const barH = d.value / niceMax * plotH;
+    const y = padT + plotH - barH;
+    const active = hoverIdx === i;
+    const deltaGood = d.delta != null && d.delta >= 0;
+    const deltaHex = d.delta == null ? null : deltaGood ? "#2fd66c" : "#fb5858";
+    return /*#__PURE__*/React.createElement("g", {
+      key: d.key,
+      onMouseEnter: e => handleMove(e, i),
+      onMouseMove: e => handleMove(e, i),
+      onMouseLeave: () => setHoverIdx(null),
+      style: {
+        cursor: "pointer"
+      }
+    }, /*#__PURE__*/React.createElement("rect", {
+      x: x,
+      y: y,
+      width: barW,
+      height: Math.max(barH, 2),
+      rx: "5",
+      fill: "url(#sales-mom-grad)",
+      opacity: active ? 1 : 0.92,
+      style: {
+        filter: active ? "drop-shadow(0 4px 10px rgba(0,136,255,0.45))" : "none",
+        transition: "opacity .12s ease"
+      }
+    }), /*#__PURE__*/React.createElement("text", {
+      x: x + barW / 2,
+      y: y - 19,
+      fontSize: "10.5",
+      fontWeight: "700",
+      textAnchor: "middle",
+      fill: "var(--text-primary)"
+    }, formatValue(d.value)), d.delta != null && /*#__PURE__*/React.createElement("text", {
+      x: x + barW / 2,
+      y: y - 7,
+      fontSize: "9.5",
+      fontWeight: "700",
+      textAnchor: "middle",
+      fill: deltaHex
+    }, (deltaGood ? "+" : "") + d.delta.toFixed(1), "% vs prev month"), /*#__PURE__*/React.createElement("text", {
+      x: x + barW / 2,
+      y: padT + plotH + 16,
+      fontSize: "10",
+      textAnchor: "middle",
+      fill: "var(--text-secondary)"
+    }, d.label));
+  })), hoverIdx !== null && data.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "tooltip",
+    style: {
+      left: mouse.x,
+      top: mouse.y - 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "tt-label"
+  }, data[hoverIdx].label), /*#__PURE__*/React.createElement("div", {
+    className: "tt-value"
+  }, formatValue(data[hoverIdx].value)), data[hoverIdx].delta != null && /*#__PURE__*/React.createElement("div", {
+    className: "tt-value",
+    style: {
+      color: data[hoverIdx].delta >= 0 ? "var(--status-good)" : "var(--status-critical)",
+      fontSize: 11
+    }
+  }, (data[hoverIdx].delta >= 0 ? "+" : "") + data[hoverIdx].delta.toFixed(1), "% vs prev month"))));
+}
+
+// Top summary strip for the full Sales Performance & Analytics tab: total
+// filtered revenue, average completed sales per rep (across only the reps
+// who actually have a filtered record, so an empty roster doesn't drag the
+// average toward zero), and the top-performing Business Unit / Sales Rep
+// by filtered revenue.
+function SalesSummaryCards({
+  data,
+  currency,
+  rate
+}) {
+  const fmt = makeMoneyFormatter(currency, rate);
+  const totalRevenue = data.reduce((s, r) => s + (r.baseAmountUSD || 0), 0);
+  const repNames = Array.from(new Set(data.map(r => r.repName).filter(Boolean)));
+  const avgPerRep = repNames.length > 0 ? totalRevenue / repNames.length : 0;
+  const byBU = {};
+  data.forEach(r => {
+    if (r.businessUnit) byBU[r.businessUnit] = (byBU[r.businessUnit] || 0) + (r.baseAmountUSD || 0);
+  });
+  const topBUEntry = Object.entries(byBU).sort((a, b) => b[1] - a[1])[0] || null;
+  const byRep = {};
+  data.forEach(r => {
+    if (r.repName) byRep[r.repName] = (byRep[r.repName] || 0) + (r.baseAmountUSD || 0);
+  });
+  const topRepEntry = Object.entries(byRep).sort((a, b) => b[1] - a[1])[0] || null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "kpi-grid"
+  }, /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Total Filtered Revenue",
+    value: fmt(totalRevenue),
+    icon: /*#__PURE__*/React.createElement(IconDollar, {
+      color: "var(--accent-blue)"
+    }),
+    iconColor: "var(--accent-blue)",
+    iconBg: "rgba(0,136,255,0.14)",
+    caption: `${data.length} record${data.length === 1 ? "" : "s"}`
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Avg. Completed Sales / Rep",
+    value: fmt(avgPerRep),
+    icon: /*#__PURE__*/React.createElement(IconUsers, null),
+    iconColor: "var(--accent-orange)",
+    iconBg: "rgba(255,153,0,0.14)",
+    caption: `${repNames.length} rep${repNames.length === 1 ? "" : "s"} with sales`
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Top Business Unit",
+    value: topBUEntry ? topBUEntry[0] : "—",
+    icon: /*#__PURE__*/React.createElement(IconTarget, {
+      color: "var(--accent-aqua)"
+    }),
+    iconColor: "var(--accent-aqua)",
+    iconBg: "rgba(34,201,142,0.14)",
+    caption: topBUEntry ? fmt(topBUEntry[1]) : "No data for this selection"
+  }), /*#__PURE__*/React.createElement(KpiCard, {
+    label: "Top Sales Rep",
+    value: topRepEntry ? topRepEntry[0] : "—",
+    icon: /*#__PURE__*/React.createElement(IconTrend, {
+      color: "var(--status-good)",
+      up: true
+    }),
+    iconColor: "var(--status-good)",
+    iconBg: "rgba(47,214,108,0.14)",
+    caption: topRepEntry ? fmt(topRepEntry[1]) : "No data for this selection"
+  }));
+}
+
+// One editable audit-table row -- every value/selection cell (Sales Rep,
+// Business Unit, Period, Completed Sales) is a live draft the row itself
+// owns, following the exact same dirty-state / explicit-Save / Cancel /
+// "Saved" flash pattern as AllocationRow in Business Units & Targets: NOT
+// saved on every keystroke or dropdown change, only once Save is clicked
+// (or Enter is pressed) -- so a rep/BU/period/amount can never be silently
+// changed by accident. MoM Variance and Status stay read-only -- they're
+// derived from the whole filtered set, not this one row.
+function SalesRecordRow({
+  record,
+  delta,
+  reps,
+  businessUnits,
+  currency,
+  rate,
+  onSave,
+  onDelete
+}) {
+  const displayAmount = () => String(Math.round(toDisplayAmount(record.baseAmountUSD, currency, rate)));
+  const splitMonth = () => {
+    const p = String(record.month || "").split("-");
+    return {
+      y: p[0] || currentYearStr(),
+      m: Number(p[1]) || 1
+    };
+  };
+  const [draftRep, setDraftRep] = useState(record.repName);
+  const [draftBU, setDraftBU] = useState(record.businessUnit);
+  const [draftMonth, setDraftMonth] = useState(() => splitMonth().m);
+  const [draftYear, setDraftYear] = useState(() => splitMonth().y);
+  const [draftAmount, setDraftAmount] = useState(displayAmount);
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => {
+    const {
+      y,
+      m
+    } = splitMonth();
+    setDraftRep(record.repName);
+    setDraftBU(record.businessUnit);
+    setDraftMonth(m);
+    setDraftYear(y);
+    setDraftAmount(displayAmount());
+  }, [record.repName, record.businessUnit, record.month, record.baseAmountUSD, currency, rate]);
+  const draftMonthStr = `${draftYear}-${String(draftMonth).padStart(2, "0")}`;
+  const dirty = draftRep !== record.repName || draftBU !== record.businessUnit || draftMonthStr !== record.month || Number(draftAmount || 0) !== Math.round(toDisplayAmount(record.baseAmountUSD, currency, rate));
+  const years = getLastNYearsFromAnchor(8, currentYearStr()).map(y => y.key).reverse();
+  async function handleSave() {
+    if (!dirty || saving) return;
+    setSaving(true);
+    await onSave({
+      repName: draftRep,
+      businessUnit: draftBU,
+      month: draftMonthStr,
+      baseAmountUSD: toBaseUSD(Number(draftAmount) || 0, currency, rate)
+    });
+    setSaving(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
+  }
+  function handleCancel() {
+    const {
+      y,
+      m
+    } = splitMonth();
+    setDraftRep(record.repName);
+    setDraftBU(record.businessUnit);
+    setDraftMonth(m);
+    setDraftYear(y);
+    setDraftAmount(displayAmount());
+  }
+  function handleKeyDown(e) {
+    if (e.key === "Enter") handleSave();else if (e.key === "Escape") handleCancel();
+  }
+  const status = salesStatusInfo(delta);
+  return /*#__PURE__*/React.createElement("tr", {
+    className: "sales-table-row" + (dirty ? " row-dirty" : "")
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: draftRep,
+    onChange: e => setDraftRep(e.target.value)
+  }, reps.map(r => /*#__PURE__*/React.createElement("option", {
+    key: r.id,
+    value: r.name
+  }, r.name)), !reps.some(r => r.name === draftRep) && draftRep && /*#__PURE__*/React.createElement("option", {
+    value: draftRep
+  }, draftRep))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "bu-select-wrap"
+  }, /*#__PURE__*/React.createElement(BUSelectSwatch, {
+    businessUnits: businessUnits,
+    value: draftBU
+  }), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: draftBU,
+    onChange: e => setDraftBU(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "No Business Unit"), businessUnits.map(b => /*#__PURE__*/React.createElement("option", {
+    key: b.id,
+    value: b.name,
+    style: {
+      color: b.color
+    }
+  }, b.name))))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "timeframe-group"
+  }, /*#__PURE__*/React.createElement("select", {
+    className: "select timeframe-anchor",
+    value: draftMonth,
+    onChange: e => setDraftMonth(Number(e.target.value))
+  }, MONTH_NAMES.map((m, i) => /*#__PURE__*/React.createElement("option", {
+    key: m,
+    value: i + 1
+  }, m))), /*#__PURE__*/React.createElement("select", {
+    className: "select timeframe-anchor timeframe-anchor-year",
+    value: draftYear,
+    onChange: e => setDraftYear(e.target.value)
+  }, (years.includes(draftYear) ? years : [...years, draftYear].sort()).map(y => /*#__PURE__*/React.createElement("option", {
+    key: y,
+    value: y
+  }, y))))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(MoneyAmountInput, {
+    className: "input target-amount-input",
+    value: draftAmount,
+    onChange: setDraftAmount,
+    onKeyDown: handleKeyDown
+  })), /*#__PURE__*/React.createElement("td", null, delta == null ? /*#__PURE__*/React.createElement("span", {
+    className: "tag-muted"
+  }, "—") : /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: delta >= 0 ? "var(--status-good)" : "var(--status-critical)",
+      fontWeight: 700
+    }
+  }, (delta >= 0 ? "+" : "") + delta.toFixed(1), "%")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "score-badge",
+    style: {
+      color: status.hex,
+      background: hexToRgba(status.hex, 0.14),
+      borderColor: hexToRgba(status.hex, 0.35)
+    }
+  }, status.label)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    className: "bu-row-actions"
+  }, justSaved && /*#__PURE__*/React.createElement("span", {
+    className: "bu-row-saved"
+  }, /*#__PURE__*/React.createElement(IconCheck, {
+    color: "var(--status-good)"
+  }), " Saved"), dirty && !justSaved && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "btn success-ghost",
+    title: "Save changes",
+    onClick: handleSave,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconCheck, null)), /*#__PURE__*/React.createElement("button", {
+    className: "btn ghost bu-row-cancel",
+    title: "Discard changes",
+    onClick: handleCancel,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconX, null))), /*#__PURE__*/React.createElement("button", {
+    className: "btn danger-ghost",
+    title: "Delete record",
+    onClick: onDelete,
+    disabled: saving
+  }, /*#__PURE__*/React.createElement(IconTrash, null)))));
+}
+
+// The management audit table: Sales Rep | Business Unit | Period | Completed
+// Sales | MoM Variance | Status, one row per completed-sales record, every
+// value/selection cell editable in place (see SalesRecordRow). MoM Variance
+// mirrors whatever that row's month shows on the comparison graph above it
+// (`series`, keyed by month) -- so the table and the graph can never tell
+// two different stories about the same month.
+function SalesDataTable({
+  data,
+  series,
+  reps,
+  businessUnits,
+  currency,
+  rate,
+  onSave,
+  onDelete
+}) {
+  const seriesByMonth = useMemo(() => {
+    const m = {};
+    series.forEach(s => {
+      m[s.key] = s.delta;
+    });
+    return m;
+  }, [series]);
+  const sorted = data.slice().sort((a, b) => a.month < b.month ? 1 : a.month > b.month ? -1 : 0);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "chart-title"
+  }, "Completed Sales — Audit Table")), /*#__PURE__*/React.createElement("div", {
+    className: "chart-sub"
+  }, "Showing ", sorted.length, " record", sorted.length === 1 ? "" : "s", " · edit any field below, then click the check mark to save"), /*#__PURE__*/React.createElement("div", {
+    className: "table-wrap"
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Sales Rep"), /*#__PURE__*/React.createElement("th", null, "Business Unit"), /*#__PURE__*/React.createElement("th", null, "Period"), /*#__PURE__*/React.createElement("th", null, "Completed Sales"), /*#__PURE__*/React.createElement("th", null, "MoM Variance"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, sorted.map(r => /*#__PURE__*/React.createElement(SalesRecordRow, {
+    key: r.id,
+    record: r,
+    delta: seriesByMonth[r.month],
+    reps: reps,
+    businessUnits: businessUnits,
+    currency: currency,
+    rate: rate,
+    onSave: patch => onSave(r.id, patch),
+    onDelete: () => onDelete(r.id)
+  })), sorted.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 7,
+    className: "empty-feed"
+  }, "No completed sales records match your filters."))))));
+}
+
+// Page-level component for the "Sales Performance & Analytics" nav tab —
+// owns the filter state (Business Unit / Rep / Month range) that every
+// child below reads from, so picking a filter or toggling currency updates
+// the entry form's label, the comparison graph, the summary cards and the
+// audit table all at once, with no separate "apply" step.
+function SalesPerformance({
+  completedSales,
+  setCompletedSales,
+  reps,
+  businessUnits,
+  currency,
+  rate
+}) {
+  const now = new Date();
+  const defaultTo = currentMonthKey();
+  const defaultFrom = monthKey(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+  const [filterBU, setFilterBU] = useState("All");
+  const [filterRep, setFilterRep] = useState("All");
+  const [monthFrom, setMonthFrom] = useState(defaultFrom);
+  const [monthTo, setMonthTo] = useState(defaultTo);
+  const fmtCompact = makeCompactMoneyFormatter(currency, rate);
+  async function addSale(sale) {
+    // The row's real primary key has to be a genuine UUID (completed_sales.id
+    // is `uuid ... default gen_random_uuid()`) -- the form's own uid() helper
+    // produces a short base-36 string, not a UUID, so generating the real id
+    // here (same as ProductivityLog's addEntry / rep_targets' upsert) is what
+    // keeps the insert from failing with "invalid input syntax for type uuid".
+    const newSale = {
+      ...sale,
+      id: uuidv4()
+    };
+    setCompletedSales(cs => [...cs, newSale]);
+    showToast("Completed sale recorded.");
+    const {
+      error
+    } = await sbWriteOrQueue({
+      table: "completed_sales",
+      action: "insert",
+      row: {
+        id: newSale.id,
+        ...completedSaleToRow(newSale)
+      }
+    });
+    if (error) {
+      window.alert("Could not save sales record: " + error.message);
+      setCompletedSales(cs => cs.filter(s => s.id !== newSale.id));
+    }
+  }
+  async function updateSale(id, patch) {
+    const prev = completedSales.find(s => s.id === id);
+    if (!prev) return;
+    setCompletedSales(cs => cs.map(s => s.id === id ? {
+      ...s,
+      ...patch
+    } : s));
+    const {
+      error
+    } = await sbWriteOrQueue({
+      table: "completed_sales",
+      action: "update",
+      row: completedSaleToRow({
+        ...prev,
+        ...patch
+      }),
+      matchColumn: "id",
+      matchValue: id
+    });
+    if (error) {
+      window.alert("Could not save changes: " + error.message);
+      setCompletedSales(cs => cs.map(s => s.id === id ? prev : s));
+    }
+  }
+  function deleteSale(id) {
+    if (!window.confirm("Delete this completed sales record? This can't be undone.")) return;
+    setCompletedSales(cs => cs.filter(s => s.id !== id));
+    sbWriteOrQueue({
+      table: "completed_sales",
+      action: "delete",
+      matchColumn: "id",
+      matchValue: id
+    }).then(({
+      error
+    }) => {
+      if (error) window.alert("Could not delete record: " + error.message);
+    });
+  }
+  const filtered = useMemo(() => completedSales.filter(s => {
+    if (filterBU !== "All" && s.businessUnit !== filterBU) return false;
+    if (filterRep !== "All" && s.repName !== filterRep) return false;
+    if (monthFrom && s.month < monthFrom) return false;
+    if (monthTo && s.month > monthTo) return false;
+    return true;
+  }), [completedSales, filterBU, filterRep, monthFrom, monthTo]);
+  const monthKeys = useMemo(() => {
+    if (monthFrom && monthTo && monthFrom <= monthTo) return monthsBetween(monthFrom, monthTo);
+    return getLastNMonthsFromAnchor(6, currentMonthKey()).map(p => p.key);
+  }, [monthFrom, monthTo]);
+  const series = useMemo(() => computeSalesMonthlySeries(filtered, monthKeys), [filtered, monthKeys]);
+  const filtersActive = filterBU !== "All" || filterRep !== "All" || monthFrom !== defaultFrom || monthTo !== defaultTo;
+  function clearFilters() {
+    setFilterBU("All");
+    setFilterRep("All");
+    setMonthFrom(defaultFrom);
+    setMonthTo(defaultTo);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "tab-content"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "topbar"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
+    className: "page-title"
+  }, "Sales Performance & Analytics"), /*#__PURE__*/React.createElement("div", {
+    className: "page-sub"
+  }, "Monthly completed sales input, Month-over-Month comparison and management filtering"))), /*#__PURE__*/React.createElement(SalesFilterBar, {
+    businessUnits: businessUnits,
+    reps: reps,
+    filterBU: filterBU,
+    setFilterBU: setFilterBU,
+    filterRep: filterRep,
+    setFilterRep: setFilterRep,
+    monthFrom: monthFrom,
+    setMonthFrom: setMonthFrom,
+    monthTo: monthTo,
+    setMonthTo: setMonthTo,
+    filtersActive: filtersActive,
+    onClear: clearFilters
+  }), /*#__PURE__*/React.createElement(SalesSummaryCards, {
+    data: filtered,
+    currency: currency,
+    rate: rate
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "charts-grid",
+    style: {
+      marginTop: 16,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement(SalesComparisonGraph, {
+    data: series,
+    formatValue: fmtCompact
+  }), /*#__PURE__*/React.createElement(SalesEntryForm, {
+    onAdd: addSale,
+    reps: reps,
+    businessUnits: businessUnits,
+    currency: currency,
+    rate: rate
+  })), /*#__PURE__*/React.createElement(SalesDataTable, {
+    data: filtered,
+    series: series,
+    reps: reps,
+    businessUnits: businessUnits,
+    currency: currency,
+    rate: rate,
+    onSave: updateSale,
+    onDelete: deleteSale
+  }));
+}
+
+/* ---------------------------------------------------------------------- */
 /* App root                                                                */
 /* ---------------------------------------------------------------------- */
 
@@ -14505,6 +15715,7 @@ function App() {
   const [profiles, setProfiles] = useState([]);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [repTargets, setRepTargets] = useState([]);
+  const [completedSales, setCompletedSales] = useState([]);
   const [messages, setMessages] = useState([]);
   const initCurrency = useMemo(loadCurrencySettings, []);
   const [currency, setCurrency] = useState(initCurrency.currency);
@@ -14576,9 +15787,10 @@ function App() {
       log,
       businessUnits,
       repTargets,
-      messages
+      messages,
+      completedSales
     });
-  }, [leads, reps, log, businessUnits, repTargets, messages]);
+  }, [leads, reps, log, businessUnits, repTargets, messages, completedSales]);
   async function loadProfileRow(userId, fallbackEmail) {
     if (!isOnlineNow()) {
       const cache = loadLocalCache();
@@ -14660,6 +15872,7 @@ function App() {
         setBusinessUnits(cache.businessUnits || []);
         setRepTargets(cache.repTargets || []);
         setMessages(cache.messages || []);
+        setCompletedSales(cache.completedSales || []);
       }
       if (silent) setRefreshing(false);else setDataLoading(false);
       return;
@@ -14669,7 +15882,7 @@ function App() {
     // that would otherwise show "Loading your workspace…" (or a
     // never-stopping Refresh spinner) with no way out.
     try {
-      const [leadsRes, repsRes, logRes, buRes, targetsRes, messagesRes] = await Promise.all([sb.from("leads").select("*").order("created_at", {
+      const [leadsRes, repsRes, logRes, buRes, targetsRes, messagesRes, completedSalesRes] = await Promise.all([sb.from("leads").select("*").order("created_at", {
         ascending: false
       }), sb.from("reps").select("*").order("created_at", {
         ascending: true
@@ -14679,8 +15892,10 @@ function App() {
         ascending: true
       }), sb.from("rep_targets").select("*"), sb.from("messages").select("*").order("created_at", {
         ascending: false
+      }), sb.from("completed_sales").select("*").order("month", {
+        ascending: true
       })]);
-      const anyNetworkError = isNetworkError(leadsRes.error) || isNetworkError(repsRes.error) || isNetworkError(logRes.error) || isNetworkError(buRes.error) || isNetworkError(targetsRes.error) || isNetworkError(messagesRes.error);
+      const anyNetworkError = isNetworkError(leadsRes.error) || isNetworkError(repsRes.error) || isNetworkError(logRes.error) || isNetworkError(buRes.error) || isNetworkError(targetsRes.error) || isNetworkError(messagesRes.error) || isNetworkError(completedSalesRes.error);
       if (anyNetworkError) {
         const cache = loadLocalCache();
         if (cache) {
@@ -14690,6 +15905,7 @@ function App() {
           setBusinessUnits(cache.businessUnits || []);
           setRepTargets(cache.repTargets || []);
           setMessages(cache.messages || []);
+          setCompletedSales(cache.completedSales || []);
         }
         return;
       }
@@ -14702,6 +15918,9 @@ function App() {
       // project — the message center just stays empty until the migration
       // in the setup SQL (see MESSAGES_TABLE_SQL) is run.
       if (!messagesRes.error) setMessages((messagesRes.data || []).map(messageFromRow));
+      // Same non-fatal treatment for completed_sales -- stays empty until
+      // leadforge_completed_sales_migration.sql has been run.
+      if (!completedSalesRes.error) setCompletedSales((completedSalesRes.data || []).map(completedSaleFromRow));
     } catch (err) {
       const cache = loadLocalCache();
       if (cache) {
@@ -14711,6 +15930,7 @@ function App() {
         setBusinessUnits(cache.businessUnits || []);
         setRepTargets(cache.repTargets || []);
         setMessages(cache.messages || []);
+        setCompletedSales(cache.completedSales || []);
       }
     } finally {
       if (silent) setRefreshing(false);else setDataLoading(false);
@@ -15422,9 +16642,12 @@ function App() {
     log: log,
     businessUnits: businessUnits,
     repTargets: repTargets,
+    completedSales: completedSales,
     selectedRep: selectedRep,
+    setSelectedRep: setSelectedRep,
     timeframe: timeframe,
     currency: currency,
+    setCurrency: setCurrency,
     rate: rate,
     onJumpToLead: jumpToLead,
     showTeamBreakdown: isAdmin,
@@ -15461,6 +16684,13 @@ function App() {
     setRepTargets: setRepTargets,
     reps: activeReps,
     leads: visibleLeads,
+    currency: currency,
+    rate: rate
+  }), tab === "salesperformance" && isAdmin && /*#__PURE__*/React.createElement(SalesPerformance, {
+    completedSales: completedSales,
+    setCompletedSales: setCompletedSales,
+    reps: activeReps,
+    businessUnits: businessUnits,
     currency: currency,
     rate: rate
   }), tab === "productivity" && /*#__PURE__*/React.createElement(ProductivityLog, {
