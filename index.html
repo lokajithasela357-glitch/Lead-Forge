@@ -3087,7 +3087,7 @@ const LOGO_LOCKUP="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA9wAAAD/CAYAAAA
 // against the `latest_version` row an Admin sets from User Management → App
 // Updates, and shows a dismissible "new version available" banner to every
 // signed-in user when this build is behind.
-const APP_VERSION="1.6.1";// A previously-dismissed banner only stays dismissed for the version it was
+const APP_VERSION="1.6.2";// A previously-dismissed banner only stays dismissed for the version it was
 // dismissed at -- a NEW version bump always shows the banner again, even if
 // an older one was dismissed.
 const UPDATE_DISMISSED_KEY="leadforge_update_dismissed_v1";// Plain numeric-segment comparison ("1.10.0" > "1.9.0") -- deliberately not
@@ -4833,7 +4833,24 @@ const inviteDeepLinkRef=useRef(false);// The session token THIS tab currently ho
 // session" useEffect below). A ref, not state -- it's read inside a
 // Realtime callback that must always see the latest value, and writing it
 // shouldn't itself trigger a re-render.
-const mySessionIdRef=useRef(null);// Lifted out of MessageCenter so the sidebar's "N online" presence badge
+const mySessionIdRef=useRef(null);// Which user id hydrateFromSession has already (or is currently) loading
+// for. supabase-js re-validates the stored session whenever the tab/window
+// regains focus after being backgrounded (switching to another app and
+// back, on both mobile and desktop), and that revalidation can re-fire a
+// SIGNED_IN event for the SAME already-logged-in user -- not just a genuine
+// new login. Bug: the SIGNED_IN handler used to treat every firing as "do
+// a full hydrate," which calls loadAllData() and replaces `leads` (and
+// every other array) wholesale with whatever's currently saved on the
+// server. A brand-new lead created via addLead() lives ONLY in local
+// state until "Add Lead" is clicked (see addLead/justCreatedId) -- so a
+// same-user refire wiped it (and anything typed into its still-open
+// LeadDrawer) out of the `leads` array entirely the instant someone
+// switched back from another app mid-edit, even though nothing about the
+// account had actually changed. Guarding on the user id here makes a
+// same-user SIGNED_IN a no-op (already hydrated, nothing to do) while a
+// real new sign-in (different user id, or after a sign-out reset this to
+// null) still hydrates normally.
+const hydratedUserIdRef=useRef(null);// Lifted out of MessageCenter so the sidebar's "N online" presence badge
 // (a totally separate part of the tree) can open the Messages panel too,
 // not just MessageCenter's own toggle button.
 const[messagesOpen,setMessagesOpen]=useState(false);// Global Search (header toolbar, Cmd/Ctrl+K) -- query/focus state lives
@@ -4893,14 +4910,26 @@ if(!tasksRes.error)setTasks((tasksRes.data||[]).map(taskFromRow));}catch(err){co
 // log, business units, rep targets, messages, and the profiles roster)
 // straight from Supabase on demand, for whenever someone wants the latest
 // without waiting on realtime or reloading the whole page.
-async function refreshData(){if(refreshing)return;const tasksToRun=[loadProfilesList(),loadAllData({silent:true})];if(currentUser&&currentUser.role==="Admin")tasksToRun.push(loadOrgInvites());await Promise.all(tasksToRun);}async function hydrateFromSession(session){if(!session||!session.user)return;// Wrapped end-to-end: any unexpected error partway through (a dropped
+async function refreshData(){if(refreshing)return;const tasksToRun=[loadProfilesList(),loadAllData({silent:true})];if(currentUser&&currentUser.role==="Admin")tasksToRun.push(loadOrgInvites());await Promise.all(tasksToRun);}async function hydrateFromSession(session){if(!session||!session.user)return;// Marked BEFORE the async work starts (not just on success) so two
+// same-user SIGNED_IN events firing back-to-back -- which is exactly
+// what happens once, then again moments later, when supabase-js
+// revalidates a backgrounded tab's session on focus regain -- can't
+// both slip past the onAuthStateChange guard below and race into two
+// concurrent full reloads. Reset to null in the catch block so a
+// genuinely failed hydration can still be retried on the next event,
+// instead of getting permanently stuck "already hydrated."
+hydratedUserIdRef.current=session.user.id;// Wrapped end-to-end: any unexpected error partway through (a dropped
 // request, a malformed response, anything not already handled as a
 // clean {error} above) must still let the caller's `.then()` continue —
 // otherwise authLoading/dataLoading never clear and the app looks stuck
 // on a loading screen instead of surfacing a way back to the login page.
 try{const profile=await loadProfileRow(session.user.id,session.user.email);if(!profile){if(!isOnlineNow()){// No cached profile on this device yet and no connection to fetch one —
 // nothing we can safely show. Ask them to reconnect at least once.
-window.alert("You're offline and this device hasn't loaded your account before. Connect to the internet once to finish opening LeadForge here.");return;}window.alert("We couldn't find a profile for this account. Please contact your Admin.");await sb.auth.signOut();return;}if(!profile.isActive){window.alert("This account has been deactivated. Contact your Admin.");await sb.auth.signOut();return;}const linkedProfile=await ensureRepForProfile(profile);if(linkedProfile.repName!==profile.repName){setProfiles(ps=>ps.map(p=>p.id===linkedProfile.id?{...p,repName:linkedProfile.repName}:p));}// Single-session enforcement: only INITIALIZE this from the row if
+// Nothing was actually hydrated, so clear the marker set above —
+// otherwise the next SIGNED_IN for this same user (e.g. once
+// they're back online) would be silently skipped as "already
+// hydrated" and they'd stay stuck on a blank workspace.
+hydratedUserIdRef.current=null;window.alert("You're offline and this device hasn't loaded your account before. Connect to the internet once to finish opening LeadForge here.");return;}window.alert("We couldn't find a profile for this account. Please contact your Admin.");await sb.auth.signOut();return;}if(!profile.isActive){window.alert("This account has been deactivated. Contact your Admin.");await sb.auth.signOut();return;}const linkedProfile=await ensureRepForProfile(profile);if(linkedProfile.repName!==profile.repName){setProfiles(ps=>ps.map(p=>p.id===linkedProfile.id?{...p,repName:linkedProfile.repName}:p));}// Single-session enforcement: only INITIALIZE this from the row if
 // this tab doesn't already have a session id of its own. A fresh
 // credential-based login (attemptLogin, below) always sets this ref
 // itself, synchronously, before this function's SIGNED_IN-triggered
@@ -4916,9 +4945,27 @@ if(!mySessionIdRef.current)mySessionIdRef.current=linkedProfile.activeSessionId;
 // the Messages panel's "Admins" tab. (The profiles_select RLS policy
 // only lets a non-admin actually read Admin rows plus their own, so
 // this can't be used to browse other reps' accounts.)
-if(isOnlineNow())await loadProfilesList();await loadAllData();sbWriteOrQueue({table:"profiles",action:"update",row:{last_login:new Date().toISOString()},matchColumn:"id",matchValue:profile.id});}catch(err){window.alert("We hit a problem loading your workspace. Please check your connection and try logging in again.");}}// Auth bootstrap: check for an existing session on load, and keep in sync
+if(isOnlineNow())await loadProfilesList();await loadAllData();sbWriteOrQueue({table:"profiles",action:"update",row:{last_login:new Date().toISOString()},matchColumn:"id",matchValue:profile.id});}catch(err){// Hydration didn't actually finish -- clear the marker so a later
+// SIGNED_IN for this same user (e.g. a retry after reconnecting)
+// isn't mistaken for "already hydrated" and skipped.
+hydratedUserIdRef.current=null;window.alert("We hit a problem loading your workspace. Please check your connection and try logging in again.");}}// Auth bootstrap: check for an existing session on load, and keep in sync
 // with sign-in/out/recovery events fired by supabase-js from then on.
-useEffect(()=>{let mounted=true;const recovering=isRecoveryRedirect();const invited=isInviteRedirect();sb.auth.getSession().then(({data})=>{if(!mounted)return;if(data.session&&!recovering&&!invited){hydrateFromSession(data.session).then(()=>{if(mounted)setAuthLoading(false);});}else{setAuthLoading(false);}}).catch(()=>{if(mounted)setAuthLoading(false);});const{data:sub}=sb.auth.onAuthStateChange((event,session)=>{if(!mounted)return;if(event==="PASSWORD_RECOVERY"){setAuthMode("recovery");}else if((isInviteRedirect()||inviteDeepLinkRef.current)&&(event==="SIGNED_IN"||event==="INITIAL_SESSION")){setAuthMode("invite");}else if(event==="SIGNED_IN"&&!isRecoveryRedirect()&&!isInviteRedirect()&&!inviteDeepLinkRef.current){hydrateFromSession(session);}else if(event==="SIGNED_OUT"){setCurrentUser(null);setLeads([]);setReps([]);setLog([]);setProfiles([]);setBusinessUnits([]);setRepTargets([]);setMessages([]);setOrgInvites([]);}});return()=>{mounted=false;sub.subscription.unsubscribe();};// eslint-disable-next-line
+useEffect(()=>{let mounted=true;const recovering=isRecoveryRedirect();const invited=isInviteRedirect();sb.auth.getSession().then(({data})=>{if(!mounted)return;if(data.session&&!recovering&&!invited){hydrateFromSession(data.session).then(()=>{if(mounted)setAuthLoading(false);});}else{setAuthLoading(false);}}).catch(()=>{if(mounted)setAuthLoading(false);});const{data:sub}=sb.auth.onAuthStateChange((event,session)=>{if(!mounted)return;if(event==="PASSWORD_RECOVERY"){setAuthMode("recovery");}else if((isInviteRedirect()||inviteDeepLinkRef.current)&&(event==="SIGNED_IN"||event==="INITIAL_SESSION")){setAuthMode("invite");}else if(event==="SIGNED_IN"&&!isRecoveryRedirect()&&!isInviteRedirect()&&!inviteDeepLinkRef.current){// supabase-js re-checks (and can silently refresh) the stored
+// session whenever this tab/window regains focus after being
+// backgrounded -- switching to another app and back, on both mobile
+// and desktop -- and that can re-fire SIGNED_IN for the SAME user
+// who was already signed in, not just on a genuine new login. Bug
+// fixed here: hydrateFromSession() calls loadAllData(), which
+// replaces `leads` (and every other array) wholesale from whatever
+// Supabase already has saved -- wiping out a brand-new lead added
+// via addLead() (which lives only in local state, unsaved, until
+// "Add Lead" is clicked; see justCreatedId) along with anything
+// still being typed into its open drawer, the instant someone
+// switched back mid-edit. A same-user refire is a no-op below
+// (nothing about the account changed, nothing needs reloading); a
+// real new sign-in -- different user id, or after SIGNED_OUT reset
+// this to null -- still hydrates normally.
+if(!(session&&session.user&&hydratedUserIdRef.current===session.user.id))hydrateFromSession(session);}else if(event==="SIGNED_OUT"){hydratedUserIdRef.current=null;setCurrentUser(null);setLeads([]);setReps([]);setLog([]);setProfiles([]);setBusinessUnits([]);setRepTargets([]);setMessages([]);setOrgInvites([]);}});return()=>{mounted=false;sub.subscription.unsubscribe();};// eslint-disable-next-line
 },[]);// Desktop-only: deliver a leadforge:// deep link (a password-reset email
 // link) to an ALREADY-RUNNING app window. main.js used to handle this by
 // reloading the window at the same file:// path with a new hash appended
