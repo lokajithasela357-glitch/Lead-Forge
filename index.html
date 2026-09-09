@@ -1292,7 +1292,35 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   }
 
   /* Filters bar (Lead Pipeline) */
-  .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; }
+  /* .card (see above) sets overflow:hidden so its gradient-border edge stays
+     perfectly rounded -- fine for every other card, whose content never
+     needs to escape its own box. The Stage filter's popover is the one
+     exception: it's an absolutely-positioned child that deliberately grows
+     BELOW the card's bottom edge (see .stage-filter-pop), and .card's
+     overflow:hidden was clipping it off entirely -- the popover technically
+     opened (the button's `open` state flipped), but its content was cut
+     down to nothing/a sliver, making it look "blocked" and impossible to
+     actually click a stage checkbox in. overflow:visible here undoes just
+     that clip for this one card; it doesn't affect the ::after border
+     pseudo (which is sized via inset:0 to the card's own box regardless of
+     the parent's overflow setting), so the card still looks identical.
+  */
+  .filters-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; padding:14px 16px; overflow:visible; }
+  /* The bigger half of the same bug: .card:hover (below) lifts every card
+     with `transform:translateY(-3px)` -- and the instant a card's computed
+     `transform` becomes anything other than the literal keyword "none" (an
+     identity matrix included, which is what a finished/lingering transition
+     leaves behind), that element starts a brand-new CSS stacking context.
+     Once .filters-bar becomes a stacking context, the Stage popover's own
+     z-index:30 only ranks against elements INSIDE that context -- it no
+     longer competes at the page level against the Lead Pipeline table/board
+     card that sits right after it in the DOM, which then paints on top and
+     visually swallows the popover the moment someone's cursor merely
+     crosses the toolbar (exactly what "the filter window won't open, it's
+     blocked" turned out to be). Cancelling the hover-lift on just this one
+     card is a one-line fix and costs nothing -- a filter toolbar was never
+     meant to "lift" on hover the way a KPI/content card does. */
+  .filters-bar:hover{ transform:none; }
   /* Stage filter -- a checkbox popover instead of a plain <select>, since
      Lead Pipeline can now be narrowed to several stages at once (e.g. "Demo"
      + "Proposal" together) rather than only ever isolating a single stage.
