@@ -769,9 +769,128 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .cell-company{ font-weight:600; color:var(--text-primary); }
   .cell-sub{ font-size:11.5px; color:var(--text-muted); margin-top:1px; }
   .cell-meta{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-  .cell-role{ font-weight:600; color:var(--accent-blue); }
-  .cell-org{ font-weight:500; color:var(--text-secondary); }
+  /* Company is the thing a rep scans a lead list FOR ("which account is
+     this"), so it now carries the stronger weight+contrast of the two --
+     bold, full-contrast text-primary (safe in both themes, unlike a
+     saturated accent color which reads fine on the dark theme but drops to
+     under 2:1 contrast against the light theme's white card surface). Job
+     title drops to the plain muted supporting-detail treatment it was
+     giving company before; the swap in LeadRow's JSX also reorders them so
+     company reads first, left-to-right, matching this new priority. */
+  /* Company name gets the app's own "electric blue" brand accent (the same
+     token used for links, active nav/tab states, section titles and
+     in-app badges everywhere else) instead of plain text-primary -- a
+     highlight color, not just heavier text weight, so an account name
+     visually pops out of the row while scanning. Kept off the more
+     saturated --accent-cyan (measured ~1.98:1 against light theme's white
+     card, a real fail) in favor of --accent-blue, the same ~3.96:1 pairing
+     this app already leans on for equally bold, similarly-sized text
+     elsewhere (e.g. .agenda-section-title.tone-upcoming, badge labels) --
+     consistent with the existing app rather than a one-off new color. */
+  .cell-org{ font-weight:700; color:var(--accent-blue); }
+  .cell-role{ font-weight:500; color:var(--text-muted); }
   .cell-meta-sep{ color:var(--text-muted); }
+
+  /* Lead Pipeline table -- space optimization. Scoped to .leads-table (see
+     LeadsTable's own className, not the bare .table-wrap/table every other
+     table in the app shares) so this doesn't change row height/column
+     behavior anywhere else -- Sales Performance's audit table, the
+     Productivity Log, etc. all keep their existing spacing untouched.
+     table-layout:fixed + explicit per-column widths (below) replace the
+     browser's default "auto" table layout, which otherwise hands width to
+     whichever column's CONTENT happens to be widest on the current page --
+     e.g. one long rep name could visibly steal room from Contact/Company,
+     the column that actually needs it most, and every column reflows width
+     as the page/filters change. Fixed widths keep the layout stable and
+     put the most room where it earns it (Contact/Company, easily the
+     densest cell: name + company + role), while tightened padding buys a
+     bit more usable width and a bit more row density without feeling
+     cramped. */
+  .leads-table{ table-layout:fixed; }
+  .leads-table thead th{ padding:0 8px 8px; }
+  .leads-table tbody td{ padding:8px; }
+  /* Column widths, take 3.
+     Take 1 used percentages that summed to 100% across columns 2-10 *on
+     top of* the checkbox column's own fixed 34px -- guaranteed overflow,
+     and several of those percentages (Win %, Stage, Actions) worked out
+     narrower than the badge/select/icon-group already living in that
+     cell, so the badge spilled into its neighbor instead of being clipped.
+     Take 2 tried to fix this by leaving Contact/Company with NO width at
+     all, on the theory that table-layout:fixed hands an unspecified
+     column whatever's left over -- true in principle, but with nothing
+     else to floor it, "leftover" hit 0 on this app's own default window
+     size, and a 0-width <th> let its header text spill into the next
+     header instead of just clipping. A `min-width`, and then a
+     `width:max(160px, calc(100% - Npx))`, were both tried as a floor and
+     both measured as literally 0 in this build's Chromium: the 'fixed'
+     table-layout algorithm resolves each column's track width from a
+     bare length/percentage, and neither takes a `min-width` nor a
+     `calc()`/`max()` expression as an input, no matter how that CSS
+     computes standalone outside a table -- verified directly by measuring
+     getComputedStyle().width on the cell after each attempt.
+     Take 3 (this one): every column, Contact/Company included, gets a
+     plain, literal, verified-sufficient px width -- no calc, no min-width,
+     nothing relying on "leftover space" semantics table-layout:fixed
+     won't actually honor here. Contact/Company's 165px was picked so the
+     row fits with a few px to spare inside this app's own default window
+     (1440x900 minus its fixed sidebar/padding chrome) with no horizontal
+     scroll in the common case; a narrower window still scrolls
+     (.table-wrap already has overflow-x:auto) rather than collapsing any
+     column to 0. Every other width below is sized to the actual
+     badge/select/icon-group that lives in it (measured via a headless
+     render, not guessed), so nothing in this row can overflow into its
+     neighbor the way the take-1 percentages did. */
+  .leads-table th:nth-child(2), .leads-table td:nth-child(2){ width:165px; }
+  .leads-table th:nth-child(3), .leads-table td:nth-child(3){ width:95px; }
+  .leads-table th:nth-child(4), .leads-table td:nth-child(4){ width:210px; }
+  .leads-table th:nth-child(5), .leads-table td:nth-child(5){ width:114px; }
+  .leads-table th:nth-child(6), .leads-table td:nth-child(6){ width:92px; }
+  .leads-table th:nth-child(7), .leads-table td:nth-child(7){ width:90px; }
+  .leads-table th:nth-child(8), .leads-table td:nth-child(8){ width:95px; }
+  .leads-table th:nth-child(9), .leads-table td:nth-child(9){ width:90px; }
+  .leads-table th:nth-child(10), .leads-table td:nth-child(10){ width:115px; }
+  /* Fixed layout means a cell no longer grows to fit an unusually long
+     value -- keep every cell's own content on one line and clip with an
+     ellipsis instead of wrapping (which used to be harmless under "auto"
+     layout, but under a fixed column width would otherwise bloat row
+     height for one long name/company/rep and throw off the whole table's
+     rhythm). Badges/pills/selects manage their own sizing and are excluded. */
+  .leads-table td{ overflow:hidden; }
+  .leads-table .cell-company{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* .cell-meta is a flex row (company · role), so ellipsis can't go on the
+     row itself -- text-overflow only truncates a block's own text, not a
+     flex container's children. Instead: stop the row from wrapping to a
+     second line, let it shrink below its content size (min-width:0, the
+     part flex children need before overflow/ellipsis will do anything),
+     and truncate each span independently so either one clips on its own
+     rather than the pair pushing the row taller. */
+  /* Company name has to be shown in FULL on this table, never cut off with
+     an ellipsis -- unlike Rep/BU badges or the job title, there's no
+     shorter fallback that still means the same thing to someone scanning
+     the pipeline for a specific account. So .cell-org gets no
+     white-space:nowrap/ellipsis at all: it wraps normally, onto as many
+     lines as the 165px column needs, and the row grows to fit -- the row
+     height was never fixed, so a taller row here doesn't push on anything
+     else. .cell-meta has to allow wrapping (flex-wrap:wrap) for that
+     wrapped text to actually show instead of being squeezed into one
+     forced line; the "·" separator and job title just drop to their own
+     line below whenever the company name needs more than one. */
+  .leads-table .cell-meta{ flex-wrap:wrap; min-width:0; }
+  .leads-table .cell-org{ min-width:0; white-space:normal; overflow-wrap:break-word; }
+  .leads-table .cell-role{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .leads-table .cell-meta-sep{ flex:0 0 auto; }
+  /* Assigned Rep / Business Unit names are user-entered (Settings -> Reps,
+     Settings -> Business Units) and can run longer than the pill's column
+     budget above -- ellipsis the whole badge rather than letting a long one
+     push into the next cell. The colored dot stays visible since it's a
+     flex-basis:auto sibling before the (now truncatable) text node. */
+  .leads-table .rep-badge, .leads-table .bu-badge{ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  /* Stage column, active mode: a native <select> (min-width 130px) that
+     grows a "save/discard" icon pair the instant its value is changed but
+     not yet committed -- the column width above already budgets for both
+     at once so that transient state never overflows into Win %. */
+  .leads-table .stage-cell-edit{ min-width:0; }
+  .leads-table .stage-select{ min-width:0; flex:1 1 0; }
   .value-input{ width:110px; }
   .stage-select{ min-width:130px; }
   .stage-cell-edit{ display:flex; align-items:center; gap:6px; }
@@ -4215,7 +4334,7 @@ useEffect(()=>{cancelEditTask();cancelEditFollowUp();},[selectedDay]);const sele
 // Drawer) — it now holds its OWN local draft, showing a small Save/Cancel
 // pair only once you've actually picked a different stage than what's
 // saved, instead of writing the instant the dropdown changes.
-function LeadRow({l,reps,businessUnits,fmt,mode,now,selected,onToggleSelect,onOpenLead,onStageChange,onArchive,onUnarchive,onDelete,onRestore,onPermanentDelete,onDuplicate,isAtRisk}){const[draftStage,setDraftStage]=useState(l.stage);useEffect(()=>{setDraftStage(l.stage);},[l.stage]);const stageDirty=mode==="active"&&draftStage!==l.stage;function handleSaveStage(){onStageChange(l.id,draftStage);}function handleCancelStage(){setDraftStage(l.stage);}return/*#__PURE__*/React.createElement("tr",{className:"lead-row"+(mode==="bin"?" lead-row-bin":"")+(selected?" lead-row-selected":""),onClick:()=>mode!=="bin"&&onOpenLead(l.id)},/*#__PURE__*/React.createElement("td",{className:"th-checkbox",onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("input",{type:"checkbox",className:"row-checkbox",checked:selected,onChange:()=>onToggleSelect(l.id),title:"Select lead"})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("div",{className:"cell-company"},l.fullName,isAtRisk&&/*#__PURE__*/React.createElement("span",{className:"stale-badge",title:"Open, high-value ($10k+), and quiet for 14+ days — or a stalled High Priority Proposal. Same criteria as the Executive At-Risk Deal Radar."},"Stale")),/*#__PURE__*/React.createElement("div",{className:"cell-sub cell-meta"},l.jobTitle&&/*#__PURE__*/React.createElement("span",{className:"cell-role"},l.jobTitle),l.jobTitle&&l.company&&/*#__PURE__*/React.createElement("span",{className:"cell-meta-sep"},"·"),l.company&&/*#__PURE__*/React.createElement("span",{className:"cell-org"},l.company),!l.jobTitle&&!l.company&&"—")),/*#__PURE__*/React.createElement("td",null,fmt(l.value)),/*#__PURE__*/React.createElement("td",{onClick:e=>e.stopPropagation()},mode==="active"?/*#__PURE__*/React.createElement("div",{className:"stage-cell-edit"},/*#__PURE__*/React.createElement("select",{className:"select stage-select",value:draftStage,onChange:e=>setDraftStage(e.target.value)},STAGES.map(s=>/*#__PURE__*/React.createElement("option",{key:s,value:s},s))),stageDirty&&/*#__PURE__*/React.createElement("span",{className:"stage-cell-actions"},/*#__PURE__*/React.createElement("button",{className:"btn success-ghost",title:"Save stage change",onClick:handleSaveStage},/*#__PURE__*/React.createElement(IconCheck,null)),/*#__PURE__*/React.createElement("button",{className:"btn ghost bu-row-cancel",title:"Discard stage change",onClick:handleCancelStage},/*#__PURE__*/React.createElement(IconX,null)))):/*#__PURE__*/React.createElement(StagePill,{stage:l.stage})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(WinProbabilityPill,{value:l.winProbability})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(PriorityBadge,{priority:l.priority})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(RepBadge,{reps:reps,name:l.assignedRep})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(BUBadge,{businessUnits:businessUnits,name:l.businessUnit})),mode==="active"&&/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(FollowUpCell,{lead:l})),mode==="archived"&&/*#__PURE__*/React.createElement("td",{className:"cell-sub"},l.archivedAt?l.archivedAt.slice(0,10):"—"),mode==="bin"&&/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("span",{className:"alert-badge overdue",style:{background:"rgba(139,138,154,0.16)",color:"var(--text-secondary)",borderColor:"var(--border-strong)"}},daysUntilPurge(l.deletedAt,now)," day",daysUntilPurge(l.deletedAt,now)===1?"":"s")),/*#__PURE__*/React.createElement("td",{onClick:e=>e.stopPropagation(),style:{display:"flex",gap:4}},mode==="active"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Duplicate lead",onClick:()=>onDuplicate(l.id)},/*#__PURE__*/React.createElement(IconCopy,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Archive lead",onClick:()=>onArchive(l.id)},/*#__PURE__*/React.createElement(IconArchive,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Move to Recycle Bin",onClick:()=>onDelete(l.id)},/*#__PURE__*/React.createElement(IconTrash,null))),mode==="archived"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Duplicate lead",onClick:()=>onDuplicate(l.id)},/*#__PURE__*/React.createElement(IconCopy,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Unarchive",onClick:()=>onUnarchive(l.id)},/*#__PURE__*/React.createElement(IconRestore,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Move to Recycle Bin",onClick:()=>onDelete(l.id)},/*#__PURE__*/React.createElement(IconTrash,null))),mode==="bin"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Restore lead",onClick:()=>onRestore(l.id)},/*#__PURE__*/React.createElement(IconRestore,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-solid",title:"Delete permanently",onClick:()=>onPermanentDelete(l.id)},/*#__PURE__*/React.createElement(IconTrashForever,null)))));}function LeadsTable({leads,reps,businessUnits,currency,rate,onOpenLead,onStageChange,onArchive,onUnarchive,onDelete,onRestore,onPermanentDelete,onDuplicate,mode,selectedIds,onToggleSelect,onToggleSelectAll,allSelected,atRiskIds}){const fmt=makeMoneyFormatter(currency,rate);const now=Date.now();if(!leads.length){const emptyText=mode==="bin"?"The Recycle Bin is empty.":mode==="archived"?"No leads have been archived.":"No leads match your filters.";return/*#__PURE__*/React.createElement("div",{className:"empty-feed",style:{padding:"36px 0"}},emptyText);}return/*#__PURE__*/React.createElement("div",{className:"table-wrap"},/*#__PURE__*/React.createElement("table",null,/*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,/*#__PURE__*/React.createElement("th",{className:"th-checkbox"},/*#__PURE__*/React.createElement("input",{type:"checkbox",className:"row-checkbox",checked:allSelected,onChange:onToggleSelectAll,title:"Select all"})),/*#__PURE__*/React.createElement("th",null,"Contact / Company"),/*#__PURE__*/React.createElement("th",null,"Deal Value"),/*#__PURE__*/React.createElement("th",null,"Stage"),/*#__PURE__*/React.createElement("th",null,"Win %"),/*#__PURE__*/React.createElement("th",null,"Priority"),/*#__PURE__*/React.createElement("th",null,"Assigned Rep"),/*#__PURE__*/React.createElement("th",null,"Business Unit"),mode==="active"&&/*#__PURE__*/React.createElement("th",null,"Follow-Up"),mode==="archived"&&/*#__PURE__*/React.createElement("th",null,"Archived"),mode==="bin"&&/*#__PURE__*/React.createElement("th",null,"Auto-Deletes In"),/*#__PURE__*/React.createElement("th",null))),/*#__PURE__*/React.createElement("tbody",null,leads.map(l=>/*#__PURE__*/React.createElement(LeadRow,{key:l.id,l:l,reps:reps,businessUnits:businessUnits,fmt:fmt,mode:mode,now:now,selected:selectedIds.has(l.id),onToggleSelect:onToggleSelect,onOpenLead:onOpenLead,onStageChange:onStageChange,onArchive:onArchive,onUnarchive:onUnarchive,onDelete:onDelete,onRestore:onRestore,onPermanentDelete:onPermanentDelete,onDuplicate:onDuplicate,isAtRisk:!!(atRiskIds&&atRiskIds.has(l.id))}))),leads.length>0&&/*#__PURE__*/React.createElement("tfoot",null,/*#__PURE__*/React.createElement("tr",{className:"table-totals-row"},/*#__PURE__*/React.createElement("td",null),/*#__PURE__*/React.createElement("td",{style:{fontWeight:700}},"Page Total"),/*#__PURE__*/React.createElement("td",{style:{fontWeight:700}},fmt(leads.reduce((s,l)=>s+(l.value||0),0))),/*#__PURE__*/React.createElement("td",{colSpan:7})))));}// Shared inline "edit an existing task" field set -- used by both the Lead
+function LeadRow({l,reps,businessUnits,fmt,mode,now,selected,onToggleSelect,onOpenLead,onStageChange,onArchive,onUnarchive,onDelete,onRestore,onPermanentDelete,onDuplicate,isAtRisk}){const[draftStage,setDraftStage]=useState(l.stage);useEffect(()=>{setDraftStage(l.stage);},[l.stage]);const stageDirty=mode==="active"&&draftStage!==l.stage;function handleSaveStage(){onStageChange(l.id,draftStage);}function handleCancelStage(){setDraftStage(l.stage);}return/*#__PURE__*/React.createElement("tr",{className:"lead-row"+(mode==="bin"?" lead-row-bin":"")+(selected?" lead-row-selected":""),onClick:()=>mode!=="bin"&&onOpenLead(l.id)},/*#__PURE__*/React.createElement("td",{className:"th-checkbox",onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("input",{type:"checkbox",className:"row-checkbox",checked:selected,onChange:()=>onToggleSelect(l.id),title:"Select lead"})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("div",{className:"cell-company"},l.fullName,isAtRisk&&/*#__PURE__*/React.createElement("span",{className:"stale-badge",title:"Open, high-value ($10k+), and quiet for 14+ days — or a stalled High Priority Proposal. Same criteria as the Executive At-Risk Deal Radar."},"Stale")),/*#__PURE__*/React.createElement("div",{className:"cell-sub cell-meta"},l.company&&/*#__PURE__*/React.createElement("span",{className:"cell-org"},l.company),l.jobTitle&&l.company&&/*#__PURE__*/React.createElement("span",{className:"cell-meta-sep"},"·"),l.jobTitle&&/*#__PURE__*/React.createElement("span",{className:"cell-role"},l.jobTitle),!l.jobTitle&&!l.company&&"—")),/*#__PURE__*/React.createElement("td",null,fmt(l.value)),/*#__PURE__*/React.createElement("td",{onClick:e=>e.stopPropagation()},mode==="active"?/*#__PURE__*/React.createElement("div",{className:"stage-cell-edit"},/*#__PURE__*/React.createElement("select",{className:"select stage-select",value:draftStage,onChange:e=>setDraftStage(e.target.value)},STAGES.map(s=>/*#__PURE__*/React.createElement("option",{key:s,value:s},s))),stageDirty&&/*#__PURE__*/React.createElement("span",{className:"stage-cell-actions"},/*#__PURE__*/React.createElement("button",{className:"btn success-ghost",title:"Save stage change",onClick:handleSaveStage},/*#__PURE__*/React.createElement(IconCheck,null)),/*#__PURE__*/React.createElement("button",{className:"btn ghost bu-row-cancel",title:"Discard stage change",onClick:handleCancelStage},/*#__PURE__*/React.createElement(IconX,null)))):/*#__PURE__*/React.createElement(StagePill,{stage:l.stage})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(WinProbabilityPill,{value:l.winProbability})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(PriorityBadge,{priority:l.priority})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(RepBadge,{reps:reps,name:l.assignedRep})),/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(BUBadge,{businessUnits:businessUnits,name:l.businessUnit})),mode==="active"&&/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement(FollowUpCell,{lead:l})),mode==="archived"&&/*#__PURE__*/React.createElement("td",{className:"cell-sub"},l.archivedAt?l.archivedAt.slice(0,10):"—"),mode==="bin"&&/*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("span",{className:"alert-badge overdue",style:{background:"rgba(139,138,154,0.16)",color:"var(--text-secondary)",borderColor:"var(--border-strong)"}},daysUntilPurge(l.deletedAt,now)," day",daysUntilPurge(l.deletedAt,now)===1?"":"s")),/*#__PURE__*/React.createElement("td",{onClick:e=>e.stopPropagation(),style:{display:"flex",gap:4}},mode==="active"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Duplicate lead",onClick:()=>onDuplicate(l.id)},/*#__PURE__*/React.createElement(IconCopy,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Archive lead",onClick:()=>onArchive(l.id)},/*#__PURE__*/React.createElement(IconArchive,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Move to Recycle Bin",onClick:()=>onDelete(l.id)},/*#__PURE__*/React.createElement(IconTrash,null))),mode==="archived"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Duplicate lead",onClick:()=>onDuplicate(l.id)},/*#__PURE__*/React.createElement(IconCopy,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Unarchive",onClick:()=>onUnarchive(l.id)},/*#__PURE__*/React.createElement(IconRestore,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Move to Recycle Bin",onClick:()=>onDelete(l.id)},/*#__PURE__*/React.createElement(IconTrash,null))),mode==="bin"&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("button",{className:"btn danger-ghost",title:"Restore lead",onClick:()=>onRestore(l.id)},/*#__PURE__*/React.createElement(IconRestore,null)),/*#__PURE__*/React.createElement("button",{className:"btn danger-solid",title:"Delete permanently",onClick:()=>onPermanentDelete(l.id)},/*#__PURE__*/React.createElement(IconTrashForever,null)))));}function LeadsTable({leads,reps,businessUnits,currency,rate,onOpenLead,onStageChange,onArchive,onUnarchive,onDelete,onRestore,onPermanentDelete,onDuplicate,mode,selectedIds,onToggleSelect,onToggleSelectAll,allSelected,atRiskIds}){const fmt=makeMoneyFormatter(currency,rate);const now=Date.now();if(!leads.length){const emptyText=mode==="bin"?"The Recycle Bin is empty.":mode==="archived"?"No leads have been archived.":"No leads match your filters.";return/*#__PURE__*/React.createElement("div",{className:"empty-feed",style:{padding:"36px 0"}},emptyText);}return/*#__PURE__*/React.createElement("div",{className:"table-wrap leads-table-wrap"},/*#__PURE__*/React.createElement("table",{className:"leads-table"},/*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,/*#__PURE__*/React.createElement("th",{className:"th-checkbox"},/*#__PURE__*/React.createElement("input",{type:"checkbox",className:"row-checkbox",checked:allSelected,onChange:onToggleSelectAll,title:"Select all"})),/*#__PURE__*/React.createElement("th",null,"Contact / Company"),/*#__PURE__*/React.createElement("th",null,"Deal Value"),/*#__PURE__*/React.createElement("th",null,"Stage"),/*#__PURE__*/React.createElement("th",null,"Win %"),/*#__PURE__*/React.createElement("th",null,"Priority"),/*#__PURE__*/React.createElement("th",null,"Assigned Rep"),/*#__PURE__*/React.createElement("th",null,"Business Unit"),mode==="active"&&/*#__PURE__*/React.createElement("th",null,"Follow-Up"),mode==="archived"&&/*#__PURE__*/React.createElement("th",null,"Archived"),mode==="bin"&&/*#__PURE__*/React.createElement("th",null,"Auto-Deletes In"),/*#__PURE__*/React.createElement("th",null))),/*#__PURE__*/React.createElement("tbody",null,leads.map(l=>/*#__PURE__*/React.createElement(LeadRow,{key:l.id,l:l,reps:reps,businessUnits:businessUnits,fmt:fmt,mode:mode,now:now,selected:selectedIds.has(l.id),onToggleSelect:onToggleSelect,onOpenLead:onOpenLead,onStageChange:onStageChange,onArchive:onArchive,onUnarchive:onUnarchive,onDelete:onDelete,onRestore:onRestore,onPermanentDelete:onPermanentDelete,onDuplicate:onDuplicate,isAtRisk:!!(atRiskIds&&atRiskIds.has(l.id))}))),leads.length>0&&/*#__PURE__*/React.createElement("tfoot",null,/*#__PURE__*/React.createElement("tr",{className:"table-totals-row"},/*#__PURE__*/React.createElement("td",null),/*#__PURE__*/React.createElement("td",{style:{fontWeight:700}},"Page Total"),/*#__PURE__*/React.createElement("td",{style:{fontWeight:700}},fmt(leads.reduce((s,l)=>s+(l.value||0),0))),/*#__PURE__*/React.createElement("td",{colSpan:7})))));}// Shared inline "edit an existing task" field set -- used by both the Lead
 // Drawer's own task list and the Calendar's day popup (see CalendarView
 // below), so editing a meeting/task looks and behaves identically no
 // matter which screen it was opened from, and both save through the exact
