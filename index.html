@@ -1638,10 +1638,30 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .calendar-weekday-row{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; }
   .calendar-weekday{ text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; padding:4px 0; }
   .calendar-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  /* min-width:0 + overflow:hidden here are load-bearing, not decoration.
+     .calendar-day is a `display:grid` ITEM (in .calendar-grid's 7x1fr
+     track list) that's ALSO `display:flex` internally, and it holds
+     .cal-day-chips -> .cal-chip -> .cal-chip-title, a chain of nowrap
+     text that can't shrink on its own. A grid item's default automatic
+     minimum width is its own min-content size -- which, walked down that
+     chain, is however wide the longest unbroken chip title is -- so ONE
+     long meeting/task title used to force every "1fr" day column wider
+     than an equal 7-way split, blowing the whole month grid out past its
+     card (verified: a 70-char title took the grid from 1108px to 3788px
+     wide, collapsing the 7-day week down to ~3 visible columns before the
+     rest ran off the right edge -- this was the reported "cut off on the
+     side" bug). Setting overflow to anything but visible on the grid item
+     itself is what tells the grid-sizing algorithm to use 0 instead of
+     that content size (the same fix already applied to the Lead Pipeline
+     table's cells earlier) -- min-width:0 is redundant with overflow:
+     hidden here but kept for clarity/defensiveness. The 3-chip cap
+     (visibleChips/overflowCount, "+N more") still does its job for
+     vertical height; this is what keeps a single WIDE chip from taking
+     the whole grid down with it horizontally. */
   .calendar-day{
     aspect-ratio:1/0.82; border-radius:9px; border:1px solid var(--border); background:var(--surface-1);
     padding:6px 7px; cursor:pointer; transition:border-color .12s ease, background .12s ease;
-    display:flex; flex-direction:column; gap:6px;
+    display:flex; flex-direction:column; gap:6px; min-width:0; overflow:hidden;
   }
   .calendar-day:hover{ border-color:var(--border-strong); background:var(--surface-2); }
   .calendar-day-outside{ opacity:0.38; }
@@ -1750,9 +1770,15 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .cal-hour-gutter{ padding:4px 8px; }
   .cal-hour-label{ font-size:10px; font-weight:700; color:var(--text-muted); text-align:right; white-space:nowrap; }
   .cal-allday-label{ display:flex; align-items:center; justify-content:flex-end; }
+  /* Same min-width:0/overflow:hidden fix as .calendar-day above, and for
+     the identical reason: these are grid items in a repeat(var(--cal-cols),
+     1fr) row that also hold nowrap .cal-chip content, so without it one
+     long chip title reflows the whole Week/Day column layout the same
+     way it did the Month grid. */
   .cal-allday-cell{
     border-left:1px solid var(--border); padding:4px; min-height:30px; cursor:pointer;
     display:flex; flex-direction:column; gap:2px; transition:background .12s ease;
+    min-width:0; overflow:hidden;
   }
   .cal-allday-cell:hover, .cal-hour-cell:hover{ background:var(--surface-2); }
   .cal-week-body{ max-height:560px; overflow-y:auto; }
@@ -1760,6 +1786,7 @@ if(xr(e,"index.xml"))throw new Error("Unsupported NUMBERS 09 file");throw new Er
   .cal-hour-cell{
     border-left:1px solid var(--border); padding:3px; min-height:38px; cursor:pointer;
     display:flex; flex-direction:column; gap:2px; transition:background .12s ease;
+    min-width:0; overflow:hidden;
   }
 
   /* Agenda list (inside the Calendar tab's own view toggle) */
@@ -4498,7 +4525,20 @@ function selectAllFiltered(){setSelectedIds(new Set(filtered.map(l=>l.id)));}fun
 // insert branch below). Closing the drawer any other way discards this
 // placeholder entirely instead of leaving a blank/half-filled lead behind
 // (see discardNewLead).
-function addLead(){const blank=makeBlankLead();blank.id=uuidv4();if(lockedRep)blank.assignedRep=lockedRep;setLeads(ls=>[blank,...ls]);setActiveLeadId(blank.id);setJustCreatedId(blank.id);}// Undoes addLead(): removes the never-saved placeholder lead from local
+function addLead(){const blank=makeBlankLead();blank.id=uuidv4();// BUG FIX: `activeLead` below (the lead handed to LeadDrawer) is looked
+// up from `activeLeads` -- which is scoped to whichever rep is currently
+// selected in the header ("All Team" vs one specific rep). A brand new
+// blank lead used to always get assignedRep:"" (unless a non-admin's
+// lockedRep applied), so the moment an Admin had a SPECIFIC rep selected
+// up top instead of "All Team", the new lead landed outside that rep's
+// scope and silently failed the `activeLeads.find(...)` lookup below --
+// activeLeadId was set correctly, but activeLead came back null, so the
+// drawer just never appeared. Clicking "+ New Lead" looked like it did
+// nothing. Defaulting to whichever rep is currently in view (when there
+// is one) keeps the new lead inside that same scope, and also happens to
+// be the more useful default anyway -- if you're looking at one rep's
+// pipeline and hit New Lead, it should start out assigned to them.
+if(lockedRep)blank.assignedRep=lockedRep;else if(selectedRep&&selectedRep!=="All")blank.assignedRep=selectedRep;setLeads(ls=>[blank,...ls]);setActiveLeadId(blank.id);setJustCreatedId(blank.id);}// Undoes addLead(): removes the never-saved placeholder lead from local
 // state. No Supabase call is needed -- it was never written there in the
 // first place.
 function discardNewLead(id){setLeads(ls=>ls.filter(l=>l.id!==id));setJustCreatedId(cur=>cur===id?null:cur);if(activeLeadId===id)setActiveLeadId(null);}// Bulk-creates every mapped row from the Import Leads modal in chunks of
@@ -4546,7 +4586,7 @@ setReasonLostSelect(REASONS_LOST[0]);setReasonLostCustomText("");setReasonLostPr
 // reused as-is rather than a second staleness definition, so the
 // Pipeline's "Stale" badge and the Dashboard's radar always agree on
 // which deals are flagged.
-const atRiskIds=useMemo(()=>new Set(computeAtRiskDeals(activeLeads,new Date()).map(x=>x.lead.id)),[activeLeads]);const baseList=view==="bin"?binLeads:view==="archived"?archivedLeads:activeLeads;const minValueUSD=minValueFilter!==""&&isFinite(Number(minValueFilter))?toBaseUSD(Number(minValueFilter),currency,rate):null;const maxValueUSD=maxValueFilter!==""&&isFinite(Number(maxValueFilter))?toBaseUSD(Number(maxValueFilter),currency,rate):null;const filtered=useMemo(()=>{let out=baseList;if(stageFilters.size>0)out=out.filter(l=>stageFilters.has(l.stage));if(priorityFilter!=="All")out=out.filter(l=>l.priority===priorityFilter);if(sourceFilter!=="All")out=out.filter(l=>l.source===sourceFilter);if(buFilter!=="All")out=out.filter(l=>buFilter==="Unassigned"?!l.businessUnit:l.businessUnit===buFilter);if(minValueUSD!=null)out=out.filter(l=>(l.value||0)>=minValueUSD);if(maxValueUSD!=null)out=out.filter(l=>(l.value||0)<=maxValueUSD);if(search.trim()){const q=search.trim().toLowerCase();out=out.filter(l=>(l.fullName||"").toLowerCase().includes(q)||(l.company||"").toLowerCase().includes(q)||(l.email||"").toLowerCase().includes(q));}return out;},[baseList,stageFilters,priorityFilter,sourceFilter,buFilter,minValueUSD,maxValueUSD,search]);const activeLead=view!=="bin"?activeLeads.concat(archivedLeads).find(l=>l.id===activeLeadId)||null:null;const allFilteredSelected=filtered.length>0&&filtered.every(l=>selectedIds.has(l.id));const selectedCount=selectedIds.size;const fmt=makeMoneyFormatter(currency,rate);const filteredTotalValue=filtered.reduce((s,l)=>s+(l.value||0),0);const totalPages=Math.max(1,Math.ceil(filtered.length/LEADS_PAGE_SIZE));// Clamp instead of resetting to 1 -- e.g. deleting the last lead on page 3
+const atRiskIds=useMemo(()=>new Set(computeAtRiskDeals(activeLeads,new Date()).map(x=>x.lead.id)),[activeLeads]);const baseList=view==="bin"?binLeads:view==="archived"?archivedLeads:activeLeads;const minValueUSD=minValueFilter!==""&&isFinite(Number(minValueFilter))?toBaseUSD(Number(minValueFilter),currency,rate):null;const maxValueUSD=maxValueFilter!==""&&isFinite(Number(maxValueFilter))?toBaseUSD(Number(maxValueFilter),currency,rate):null;const filtered=useMemo(()=>{let out=baseList;if(stageFilters.size>0)out=out.filter(l=>stageFilters.has(l.stage));if(priorityFilter!=="All")out=out.filter(l=>l.priority===priorityFilter);if(sourceFilter!=="All")out=out.filter(l=>l.source===sourceFilter);if(buFilter!=="All")out=out.filter(l=>buFilter==="Unassigned"?!l.businessUnit:l.businessUnit===buFilter);if(minValueUSD!=null)out=out.filter(l=>(l.value||0)>=minValueUSD);if(maxValueUSD!=null)out=out.filter(l=>(l.value||0)<=maxValueUSD);if(search.trim()){const q=search.trim().toLowerCase();out=out.filter(l=>(l.fullName||"").toLowerCase().includes(q)||(l.company||"").toLowerCase().includes(q)||(l.email||"").toLowerCase().includes(q));}return out;},[baseList,stageFilters,priorityFilter,sourceFilter,buFilter,minValueUSD,maxValueUSD,search]);const activeLead=view!=="bin"?activeLeads.concat(archivedLeads).find(l=>l.id===activeLeadId)||leads.find(l=>l.id===activeLeadId&&!l.deletedAt)||null:null;const allFilteredSelected=filtered.length>0&&filtered.every(l=>selectedIds.has(l.id));const selectedCount=selectedIds.size;const fmt=makeMoneyFormatter(currency,rate);const filteredTotalValue=filtered.reduce((s,l)=>s+(l.value||0),0);const totalPages=Math.max(1,Math.ceil(filtered.length/LEADS_PAGE_SIZE));// Clamp instead of resetting to 1 -- e.g. deleting the last lead on page 3
 // of 3 should drop back to the new page 2, not yank you all the way to
 // page 1 of an otherwise-untouched list.
 useEffect(()=>{if(page>totalPages)setPage(totalPages);},[page,totalPages]);const pageStart=(page-1)*LEADS_PAGE_SIZE;const pageLeads=filtered.slice(pageStart,pageStart+LEADS_PAGE_SIZE);const allPageSelected=pageLeads.length>0&&pageLeads.every(l=>selectedIds.has(l.id));// --- Export to PDF --------------------------------------------------------
