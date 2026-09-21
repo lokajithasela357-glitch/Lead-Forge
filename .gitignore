@@ -1,0 +1,6 @@
+node_modules/
+dist/
+installer-parts/
+installer-parts-mac/
+*.log
+.DS_Store
