@@ -3637,7 +3637,7 @@ return result;}// The single entry point every mutating Supabase call in the app
 // through. Tries the real write; if it can't reach the network, the change
 // is stashed locally (the UI has already updated optimistically) and gets
 // replayed automatically the next time we're back online.
-async function sbWriteOrQueue(op){if(!isOnlineNow()){enqueueOfflineOp(op);return{queued:true,error:null};}try{const{error}=await runSupabaseOp(op);if(error){if(isNetworkError(error)){enqueueOfflineOp(op);return{queued:true,error:null};}return{queued:false,error};}return{queued:false,error:null};}catch(e){enqueueOfflineOp(op);return{queued:true,error:null};}}// Wraps sb.channel(name, opts) + .subscribe() with automatic reconnect.
+async function sbWriteOrQueue(op){window.__lfLastWriteAt=Date.now();if(!isOnlineNow()){enqueueOfflineOp(op);return{queued:true,error:null};}try{const{error}=await runSupabaseOp(op);if(error){if(isNetworkError(error)){enqueueOfflineOp(op);return{queued:true,error:null};}return{queued:false,error};}return{queued:false,error:null};}catch(e){enqueueOfflineOp(op);return{queued:true,error:null};}}// Wraps sb.channel(name, opts) + .subscribe() with automatic reconnect.
 // supabase-js does not resubscribe a Realtime channel on its own once the
 // underlying websocket surfaces CHANNEL_ERROR/TIMED_OUT/CLOSED -- without
 // this wrapper, a dropped connection silently leaves whatever that channel
@@ -5748,11 +5748,11 @@ function markDelivered(rows){const toMark=rows.filter(m=>!m.deliveredAt);if(!toM
 // below for every real login. refreshData's plain button-click closure
 // doesn't have that problem, so it can leave this unset and fall back to
 // the live `currentUser` state.
-async function loadAllData(opts){const silent=!!(opts&&opts.silent);const myOwnName=opts&&opts.myName||(currentUser?currentUser.role==="Admin"?currentUser.name:currentUser.repName||"":"");if(silent)setRefreshing(true);else setDataLoading(true);// No connection at all — don't wait on a request that can't succeed;
+async function loadAllData(opts){const silent=!!(opts&&opts.silent);const quiet=!!(opts&&opts.quiet);const myOwnName=opts&&opts.myName||(currentUser?currentUser.role==="Admin"?currentUser.name:currentUser.repName||"":"");if(quiet){}else if(silent)setRefreshing(true);else setDataLoading(true);// No connection at all — don't wait on a request that can't succeed;
 // fall straight back to whatever this device last saw, so the app still
 // opens. Once we're back online the queue flush + a manual refresh will
 // pick up anything that changed elsewhere in the meantime.
-if(!isOnlineNow()){const cache=loadLocalCache();if(cache){setLeads(cache.leads||[]);setReps(cache.reps||[]);setLog(cache.log||[]);setBusinessUnits(cache.businessUnits||[]);setRepTargets(cache.repTargets||[]);setMessages(cache.messages||[]);setCompletedSales(cache.completedSales||[]);setTasks(cache.tasks||[]);}if(silent)setRefreshing(false);else setDataLoading(false);return;}// Wrapped so a request that throws outright (instead of resolving with a
+if(!isOnlineNow()){const cache=loadLocalCache();if(cache){setLeads(cache.leads||[]);setReps(cache.reps||[]);setLog(cache.log||[]);setBusinessUnits(cache.businessUnits||[]);setRepTargets(cache.repTargets||[]);setMessages(cache.messages||[]);setCompletedSales(cache.completedSales||[]);setTasks(cache.tasks||[]);}if(quiet){}else if(silent)setRefreshing(false);else setDataLoading(false);return;}// Wrapped so a request that throws outright (instead of resolving with a
 // clean {error}) can't leave dataLoading/refreshing stuck true forever —
 // that would otherwise show "Loading your workspace…" (or a
 // never-stopping Refresh spinner) with no way out.
@@ -5774,7 +5774,7 @@ if(myOwnName){markDelivered(loadedMessages.filter(m=>m.recipient===myOwnName&&m.
 // leadforge_completed_sales_migration.sql has been run.
 if(!completedSalesRes.error)setCompletedSales((completedSalesRes.data||[]).map(completedSaleFromRow));// Same non-fatal treatment for lead_tasks -- stays empty until
 // leadforge_lead_tasks_migration.sql has been run.
-if(!tasksRes.error)setTasks((tasksRes.data||[]).map(taskFromRow));}catch(err){const cache=loadLocalCache();if(cache){setLeads(cache.leads||[]);setReps(cache.reps||[]);setLog(cache.log||[]);setBusinessUnits(cache.businessUnits||[]);setRepTargets(cache.repTargets||[]);setMessages(cache.messages||[]);setCompletedSales(cache.completedSales||[]);setTasks(cache.tasks||[]);}}finally{if(silent)setRefreshing(false);else setDataLoading(false);}}// The manual Refresh button — re-pulls everything (leads, reps, activity
+if(!tasksRes.error)setTasks((tasksRes.data||[]).map(taskFromRow));}catch(err){const cache=loadLocalCache();if(cache){setLeads(cache.leads||[]);setReps(cache.reps||[]);setLog(cache.log||[]);setBusinessUnits(cache.businessUnits||[]);setRepTargets(cache.repTargets||[]);setMessages(cache.messages||[]);setCompletedSales(cache.completedSales||[]);setTasks(cache.tasks||[]);}}finally{if(quiet){}else if(silent)setRefreshing(false);else setDataLoading(false);}}// The manual Refresh button — re-pulls everything (leads, reps, activity
 // log, business units, rep targets, messages, and the profiles roster)
 // straight from Supabase on demand, for whenever someone wants the latest
 // without waiting on realtime or reloading the whole page.
@@ -5934,7 +5934,20 @@ const iAmInvited=incoming.type==="Meeting"&&Array.isArray(incoming.attendeeIds)&
 // clears automatically the instant a tab disconnects (closed, network
 // drop, logout), so the sidebar's list is always the actual live set of
 // people using the app right now — never a stale "last seen" snapshot.
-const[onlineUsers,setOnlineUsers]=useState([]);useEffect(()=>{if(!currentUser){setOnlineUsers([]);return;}const myOwnName=currentUser.role==="Admin"?currentUser.name:currentUser.repName||"";const handle=subscribeWithReconnect("leadforge-presence",{config:{presence:{key:currentUser.id}}},channel=>{channel.on("presence",{event:"sync"},()=>{const state=channel.presenceState();const users=Object.keys(state).map(key=>{const entry=state[key]&&state[key][0];return entry?{id:key,name:entry.name,role:entry.role}:null;}).filter(Boolean);users.sort((a,b)=>a.name.localeCompare(b.name));setOnlineUsers(users);});},async(status,channel)=>{// Re-track on every (re)connect, not just the first -- a reconnect
+// Keeps every screen in step with what teammates enter. Leads, activity
+// logs, completed sales, targets, reps and business units were only ever
+// loaded once at login (plus the manual Refresh button) -- only messages and
+// tasks had live sync -- so an Admin looking at Dashboard / Sales
+// Performance / Team Analytics saw the figures as they were when THEY logged
+// in, while a rep who'd since logged calls or recorded a sale saw different
+// numbers. This quietly re-pulls the same data (no spinner, no "Loading"
+// screen) every 30s, and immediately when the window regains focus or the
+// connection returns. It deliberately stands down while the tab is hidden,
+// while offline, while queued offline writes are still waiting to sync (a
+// refetch then would hide them), and for a few seconds after this user's own
+// last save (so a slow refetch can't momentarily overwrite an edit that was
+// just made).
+const loadAllDataRef=useRef(null);loadAllDataRef.current=loadAllData;useEffect(()=>{if(!currentUser)return undefined;let inFlight=false;async function resync(){if(inFlight||document.hidden||!isOnlineNow())return;if(getOfflineQueue().length)return;if(Date.now()-(window.__lfLastWriteAt||0)<8000)return;inFlight=true;try{await loadAllDataRef.current({quiet:true,silent:true});}catch(e){/* next tick retries */}finally{inFlight=false;}}const intervalId=setInterval(resync,30000);function onVisible(){if(!document.hidden)resync();}document.addEventListener("visibilitychange",onVisible);window.addEventListener("focus",resync);window.addEventListener("online",resync);return()=>{clearInterval(intervalId);document.removeEventListener("visibilitychange",onVisible);window.removeEventListener("focus",resync);window.removeEventListener("online",resync);};},[currentUser&&currentUser.id]);const[onlineUsers,setOnlineUsers]=useState([]);useEffect(()=>{if(!currentUser){setOnlineUsers([]);return;}const myOwnName=currentUser.role==="Admin"?currentUser.name:currentUser.repName||"";const handle=subscribeWithReconnect("leadforge-presence",{config:{presence:{key:currentUser.id}}},channel=>{channel.on("presence",{event:"sync"},()=>{const state=channel.presenceState();const users=Object.keys(state).map(key=>{const entry=state[key]&&state[key][0];return entry?{id:key,name:entry.name,role:entry.role}:null;}).filter(Boolean);users.sort((a,b)=>a.name.localeCompare(b.name));setOnlineUsers(users);});},async(status,channel)=>{// Re-track on every (re)connect, not just the first -- a reconnect
 // after a dropped websocket gets a brand-new channel object, and
 // presence state starts empty until this tab tracks itself again.
 if(status==="SUBSCRIBED"){await channel.track({name:myOwnName||currentUser.email||"Someone",role:currentUser.role});}});return()=>{handle.stop();setOnlineUsers([]);};},[currentUser&&currentUser.id]);// Single active session per account -- the live half of it. attemptLogin
